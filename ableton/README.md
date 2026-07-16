@@ -1,4 +1,4 @@
-# LumiDI Max for Live device
+ok# LumiDI Max for Live device
 
 A MIDI-effect device that animates the LED strip by streaming pixel frames (~30fps)
 as raw MIDI notes in the firmware's protocol. All animation logic lives in
@@ -10,8 +10,11 @@ as raw MIDI notes in the firmware's protocol. All animation logic lives in
 python3 build_amxd.py   # wraps lumidi.maxpat -> LumiDI.amxd (git-ignored)
 ```
 
-The `.amxd` must stay in this folder — an unfrozen device finds `lumidi-engine.js`
-by looking next to itself.
+The build also copies the luMIDI logo (`web/favicon.svg`) here as
+`lumidi-logo.svg` (git-ignored) for the device's `[fpic]` to display.
+
+The `.amxd` must stay in this folder — an unfrozen device finds
+`lumidi-engine.js` and `lumidi-logo.svg` by looking next to itself.
 
 ## Use
 
@@ -38,6 +41,24 @@ by looking next to itself.
 
 - Never send velocity 0 as a pixel write — it's a MIDI note-off and the firmware
   ignores it. Velocity 1 is the firmware's "write zero" escape.
-- `SEND_NOTEOFFS` in `lumidi-engine.js` pairs every note-on with a velocity-0
-  note-off so notes don't hang in Live's pipeline. The Teensy and the simulator
-  both ignore them. Set it to `false` to A/B test if anything misbehaves.
+- The strip only renders when note 127 ("show") arrives — pixel writes just
+  stage. The engine ends every batch with note 127, and the simulator logs it
+  (`note 127 (show) -> latch frame`) so you can verify latches are arriving.
+- `SEND_NOTEOFFS` in `lumidi-engine.js` sends a velocity-0 note-off for every
+  note-on so notes don't hang in Live's pipeline. Offs are *deferred* to the
+  start of the next batch/tick — never sent in the same instant as their
+  note-on, because Live can drop zero-length notes (which would eat pixel
+  writes and the show latch). The Teensy and the simulator both ignore them.
+  Set it to `false` to A/B test if anything misbehaves.
+- **Solid** is event-driven: a color/brightness change sends the complete
+  frame once, then the device goes silent — no idle MIDI stream. The full
+  undiffed send means a previously dropped message can't leave a pixel stale.
+- Solid dial drags are debounced (`SOLID_DEBOUNCE_MS`): intermediate values
+  only get a throttled preview frame every `SOLID_THROTTLE_MS`, and the final
+  frame goes out once the dial settles — dragging can't back up the pipeline.
+  Discrete events (anim switch, re-enable) skip the debounce.
+- **Animated modes** stream diffed frames per tick and additionally re-send
+  the complete frame every ~2s (`REFRESH_TICKS`) to self-heal drops in
+  Live's note pipeline.
+- Live's device activator gates the stream: deactivating blacks out the strip
+  and stops emitting; reactivating forces a full-frame resend.

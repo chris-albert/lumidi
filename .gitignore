@@ -1,8 +1,10 @@
 # local Claude Code settings
 .claude/
 
-# build artifact — regenerate with: python3 ableton/build_amxd.py
+# build artifacts — regenerate with: python3 ableton/build_amxd.py
 ableton/LumiDI.amxd
+ableton/lumidi-logo.svg
 
 # PlatformIO
 hardware/teensy/.pio/
+.DS_Store

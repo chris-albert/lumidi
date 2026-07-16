@@ -17,10 +17,29 @@ outlets = 2; // 0: "pitch velocity" lists -> [midiformat] -> [midiout]
 var NUM_LEDS = 19;
 var SHOW_NOTE = 127;
 
-// Emit a paired velocity-0 note-off after every note-on so notes never hang
-// in Live's pipeline. The Teensy has no note-off handler and the simulator
+// Emit a velocity-0 note-off for every note-on so notes never hang in
+// Live's pipeline. The Teensy has no note-off handler and the simulator
 // ignores velocity 0, so this is invisible downstream. Set false to A/B test.
+//
+// Note-offs are DEFERRED: a batch's offs are flushed at the start of the
+// next batch/tick, never in the same instant as their note-ons. A
+// zero-length on+off pair can be coalesced/dropped by Live's note pipeline,
+// which would eat pixel writes and — worse — the note-127 show latch the
+// firmware needs before it renders anything.
 var SEND_NOTEOFFS = true;
+
+// Animated modes only: re-send the complete frame every N ticks (~2s at
+// 30fps) so a message dropped by Live's note pipeline can't leave a pixel
+// stale. Solid mode is event-driven (full frame once per change, then
+// silence) and never uses this.
+var REFRESH_TICKS = 60;
+
+// Solid mode debounce: during a dial drag every intermediate value would be
+// a full-frame burst, flooding Live's note pipeline and lagging the strip.
+// While values keep arriving we send a throttled preview at most every
+// THROTTLE ms; the final frame goes out once the value settles for DEBOUNCE ms.
+var SOLID_DEBOUNCE_MS = 100;
+var SOLID_THROTTLE_MS = 250;
 
 // Menu indices in the device's Sync Rate live.menu, in beats per cycle (4/4).
 var SYNC_BEATS = [32, 16, 8, 4, 2, 1, 0.5, 0.25]; // 8bars..1/16
@@ -46,8 +65,14 @@ var transPlaying = 0;
 // --- animation state ---
 var phase = 0;            // 0..1 position in the animation cycle
 var lastTickMs = 0;
+var deviceActive = 1;     // Live's device activator (live.thisdevice outlet 1)
+var ticksSinceRefresh = 0;
+var solidDirty = true;    // solid mode: full frame pending
+var solidDirtyMs = 0;     // when the pending change last arrived (0 = send now)
+var lastSolidSendMs = 0;  // last solid frame send, for the drag throttle
 var frame = [];           // staged RGB values 0..255, length NUM_LEDS*3
 var lastVel = [];         // last velocity sent per channel, -1 = never sent
+var pendingOffs = [];     // note-offs owed for the previous batch's note-ons
 resetBuffers();
 
 function resetBuffers() {
@@ -61,18 +86,36 @@ function resetBuffers() {
 }
 
 // --- parameter messages from the patch ---
-function anim(i)       { p.anim = i | 0; }
-function hue(v)        { p.hue = v; sendSwatch(); }
-function sat(v)        { p.sat = v; sendSwatch(); }
-function brightness(v) { p.brightness = v; }
+function anim(i)       { p.anim = i | 0; invalidate(); solidNow(); }
+function hue(v)        { p.hue = v; sendSwatch(); solidSoon(); }
+function sat(v)        { p.sat = v; sendSwatch(); solidSoon(); }
+function brightness(v) { p.brightness = v; solidSoon(); }
 function rate(v)       { p.rate = v; }
 function sync(v)       { p.sync = v | 0; }
 function syncrate(i)   { p.syncrate = i | 0; }
 function dir(i)        { p.dir = i | 0; }
 
+// debounced: dial drags settle before the final frame goes out
+function solidSoon() { solidDirty = true; solidDirtyMs = Date.now(); }
+// immediate: discrete events (anim switch, re-enable) skip the debounce
+function solidNow()  { solidDirty = true; solidDirtyMs = 0; }
+
 function on(v) {
   p.on = v | 0;
   if (!p.on) blackout();
+  else { invalidate(); solidNow(); } // full resend on re-enable
+}
+
+// Live's device activator (live.thisdevice outlet 1)
+function active(v) {
+  deviceActive = v | 0;
+  if (!deviceActive) blackout();
+  else { invalidate(); solidNow(); }
+}
+
+function invalidate() {
+  var i;
+  for (i = 0; i < NUM_LEDS * 3; i++) lastVel[i] = -1;
 }
 
 function ticks(t)   { transTicks = t; }
@@ -88,7 +131,33 @@ function tick() {
   lastTickMs = now;
   if (dt < 0 || dt > 0.25) dt = 0.033; // reload / stall guard
 
-  if (!p.on) return;
+  flushOffs(); // release the previous batch's note-offs (even when gated)
+
+  if (!p.on || !deviceActive) return;
+
+  if (p.anim === 0) {
+    // solid is event-driven: send the full frame once per change, then
+    // nothing. Mid-drag values only get a throttled preview; the final
+    // frame goes out once the value has settled.
+    if (solidDirty) {
+      var settled = now - solidDirtyMs >= SOLID_DEBOUNCE_MS;
+      var preview = now - lastSolidSendMs >= SOLID_THROTTLE_MS;
+      if (settled || preview) {
+        if (settled) solidDirty = false;
+        lastSolidSendMs = now;
+        invalidate(); // full undiffed send so a prior drop can't leave a pixel stale
+        renderFrame();
+        sendFrame();
+      }
+    }
+    return;
+  }
+
+  ticksSinceRefresh++;
+  if (ticksSinceRefresh >= REFRESH_TICKS) {
+    ticksSinceRefresh = 0;
+    invalidate();
+  }
 
   advancePhase(dt);
   renderFrame();
@@ -141,6 +210,7 @@ function renderFrame() {
 
 // --- MIDI output ---
 function sendFrame() {
+  flushOffs(); // previous batch's offs always precede this batch's ons
   var i, vel, changed = false;
   for (i = 0; i < NUM_LEDS * 3; i++) {
     vel = toVel(frame[i]);
@@ -155,16 +225,19 @@ function sendFrame() {
 
 function blackout() {
   var i;
-  for (i = 0; i < NUM_LEDS * 3; i++) {
-    noteOut(i, 1); // velocity 1 = firmware's "write zero" escape
-    lastVel[i] = 1;
-  }
-  noteOut(SHOW_NOTE, 64);
+  for (i = 0; i < NUM_LEDS * 3; i++) frame[i] = 0;
+  sendFrame(); // diffed: already-dark channels send nothing
 }
 
 function noteOut(note, vel) {
   outlet(0, note, vel);
-  if (SEND_NOTEOFFS) outlet(0, note, 0);
+  if (SEND_NOTEOFFS) pendingOffs.push(note);
+}
+
+function flushOffs() {
+  var i;
+  for (i = 0; i < pendingOffs.length; i++) outlet(0, pendingOffs[i], 0);
+  pendingOffs = [];
 }
 
 // 0..255 brightness -> velocity, honoring the firmware's quirks:

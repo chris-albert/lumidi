@@ -20,7 +20,9 @@ let staging = new Uint8Array(MAX_NOTE_LEDS * 3);
 let ledEls = [];
 let activeInput = null;
 let frames = 0;
+let msgs = 0;
 let logLines = [];
+let logDirty = false;
 
 function buildStrip() {
   numLeds = Math.min(MAX_NOTE_LEDS, Math.max(1, countEl.valueAsNumber || 19));
@@ -49,6 +51,7 @@ function latch() {
 
 function onMidiMessage(e) {
   const [status, note, velocity] = e.data;
+  msgs++;
   if ((status & 0xf0) !== 0x90 || velocity === 0) return; // note-ons only, vel 0 = note-off
   if (note === 127) {
     latch();
@@ -63,9 +66,18 @@ function onMidiMessage(e) {
   }
 }
 
+// The MIDI handler runs per message (100s/sec while animating) — touching the
+// DOM there stalls the page and backs up the whole MIDI event queue. log()
+// only buffers; a 100ms interval in init() renders the log at most 10x/sec.
 function log(line) {
   logLines.push(line);
   if (logLines.length > 400) logLines = logLines.slice(-200);
+  logDirty = true;
+}
+
+function renderLog() {
+  if (!logDirty) return;
+  logDirty = false;
   logEl.textContent = logLines.slice(-200).join('\n');
   logEl.scrollTop = logEl.scrollHeight;
 }
@@ -104,9 +116,11 @@ function refreshInputs(midi) {
 async function init() {
   buildStrip();
   countEl.addEventListener('change', buildStrip);
+  setInterval(renderLog, 100);
   setInterval(() => {
-    statsEl.textContent = `${frames.toFixed(1)} fps`;
+    statsEl.textContent = `${frames} fps · ${msgs} msg/s`;
     frames = 0;
+    msgs = 0;
   }, 1000);
 
   if (!navigator.requestMIDIAccess) {

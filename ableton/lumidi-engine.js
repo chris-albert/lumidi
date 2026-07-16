@@ -22,6 +22,12 @@ var SHOW_NOTE = 127;
 // ignores velocity 0, so this is invisible downstream. Set false to A/B test.
 var SEND_NOTEOFFS = true;
 
+// Re-send the complete frame every N ticks (~2s at 30fps) even if unchanged.
+// Live's note pipeline can drop or chase messages (e.g. around device
+// enable/disable); without this, a lost write leaves a pixel stale forever
+// because the diff cache assumes delivery.
+var REFRESH_TICKS = 60;
+
 // Menu indices in the device's Sync Rate live.menu, in beats per cycle (4/4).
 var SYNC_BEATS = [32, 16, 8, 4, 2, 1, 0.5, 0.25]; // 8bars..1/16
 
@@ -46,6 +52,8 @@ var transPlaying = 0;
 // --- animation state ---
 var phase = 0;            // 0..1 position in the animation cycle
 var lastTickMs = 0;
+var deviceActive = 1;     // Live's device activator (live.thisdevice outlet 1)
+var ticksSinceRefresh = 0;
 var frame = [];           // staged RGB values 0..255, length NUM_LEDS*3
 var lastVel = [];         // last velocity sent per channel, -1 = never sent
 resetBuffers();
@@ -73,6 +81,19 @@ function dir(i)        { p.dir = i | 0; }
 function on(v) {
   p.on = v | 0;
   if (!p.on) blackout();
+  else invalidate(); // full resend in case anything was dropped while off
+}
+
+// Live's device activator (live.thisdevice outlet 1)
+function active(v) {
+  deviceActive = v | 0;
+  if (!deviceActive) blackout();
+  else invalidate();
+}
+
+function invalidate() {
+  var i;
+  for (i = 0; i < NUM_LEDS * 3; i++) lastVel[i] = -1;
 }
 
 function ticks(t)   { transTicks = t; }
@@ -88,7 +109,13 @@ function tick() {
   lastTickMs = now;
   if (dt < 0 || dt > 0.25) dt = 0.033; // reload / stall guard
 
-  if (!p.on) return;
+  if (!p.on || !deviceActive) return;
+
+  ticksSinceRefresh++;
+  if (ticksSinceRefresh >= REFRESH_TICKS) {
+    ticksSinceRefresh = 0;
+    invalidate();
+  }
 
   advancePhase(dt);
   renderFrame();
@@ -155,11 +182,8 @@ function sendFrame() {
 
 function blackout() {
   var i;
-  for (i = 0; i < NUM_LEDS * 3; i++) {
-    noteOut(i, 1); // velocity 1 = firmware's "write zero" escape
-    lastVel[i] = 1;
-  }
-  noteOut(SHOW_NOTE, 64);
+  for (i = 0; i < NUM_LEDS * 3; i++) frame[i] = 0;
+  sendFrame(); // diffed: already-dark channels send nothing
 }
 
 function noteOut(note, vel) {

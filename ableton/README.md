@@ -1,4 +1,4 @@
-# LumiDI Max for Live device
+ok# LumiDI Max for Live device
 
 A MIDI-effect device that animates the LED strip by streaming pixel frames (~30fps)
 as raw MIDI notes in the firmware's protocol. All animation logic lives in
@@ -10,8 +10,11 @@ as raw MIDI notes in the firmware's protocol. All animation logic lives in
 python3 build_amxd.py   # wraps lumidi.maxpat -> LumiDI.amxd (git-ignored)
 ```
 
-The `.amxd` must stay in this folder — an unfrozen device finds `lumidi-engine.js`
-by looking next to itself.
+The build also copies the luMIDI logo (`web/favicon.svg`) here as
+`lumidi-logo.svg` (git-ignored) for the device's `[fpic]` to display.
+
+The `.amxd` must stay in this folder — an unfrozen device finds
+`lumidi-engine.js` and `lumidi-logo.svg` by looking next to itself.
 
 ## Use
 
@@ -41,3 +44,8 @@ by looking next to itself.
 - `SEND_NOTEOFFS` in `lumidi-engine.js` pairs every note-on with a velocity-0
   note-off so notes don't hang in Live's pipeline. The Teensy and the simulator
   both ignore them. Set it to `false` to A/B test if anything misbehaves.
+- The engine only sends channels that changed, but re-sends the complete frame
+  every ~2s (`REFRESH_TICKS`) so a message dropped by Live's note pipeline
+  can't leave a pixel stale.
+- Live's device activator gates the stream: deactivating blacks out the strip
+  and stops emitting; reactivating forces a full-frame resend.

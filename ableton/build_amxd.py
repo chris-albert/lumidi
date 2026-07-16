@@ -10,8 +10,12 @@ An unfrozen .amxd is a flat sequence of IFF-style chunks
 
 The .amxd must live next to lumidi-engine.js so the [js] object finds it.
 Verified against Ableton's factory devices (e.g. Melodic Steps.amxd).
+
+Also copies the luMIDI logo (web/favicon.svg) next to the device, where the
+patcher's [fpic] finds it by name.
 """
 import json
+import shutil
 import struct
 import sys
 from pathlib import Path
@@ -19,6 +23,8 @@ from pathlib import Path
 HERE = Path(__file__).parent
 MAXPAT = HERE / "lumidi.maxpat"
 AMXD = HERE / "LumiDI.amxd"
+LOGO_SRC = HERE.parent / "web" / "favicon.svg"
+LOGO = HERE / "lumidi-logo.svg"
 
 
 def chunk(tag: bytes, data: bytes) -> bytes:
@@ -55,7 +61,9 @@ def main() -> int:
     blob = build()
     verify(blob)
     AMXD.write_bytes(blob)
+    shutil.copyfile(LOGO_SRC, LOGO)
     print(f"wrote {AMXD} ({len(blob)} bytes, round-trip verified)")
+    print(f"copied {LOGO_SRC} -> {LOGO}")
     return 0
 
 

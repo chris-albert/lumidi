@@ -1,0 +1,8 @@
+# local Claude Code settings
+.claude/
+
+# build artifact — regenerate with: python3 ableton/build_amxd.py
+ableton/LumiDI.amxd
+
+# PlatformIO
+hardware/teensy/.pio/

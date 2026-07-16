@@ -3,7 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>LumiDI Strip Simulator</title>
+  <title>luMIDI Strip Simulator</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <style>
     :root { color-scheme: dark; }
     body {
@@ -27,7 +28,30 @@
       background: #11151a;
       border-bottom: 1px solid #1f242b;
     }
-    h1 { font-size: 16px; margin: 0; font-weight: 600; }
+    h1 {
+      font-size: 18px;
+      margin: 0;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      letter-spacing: 0.02em;
+    }
+    h1 .midi {
+      background: linear-gradient(90deg, #ff3b30, #ffb300, #34d158, #2fb6ff, #b45bff);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+    h1 .sub {
+      font-size: 12px;
+      font-weight: 400;
+      color: #8b949e;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      align-self: flex-end;
+      padding-bottom: 2px;
+    }
     label { display: flex; align-items: center; gap: 8px; color: #8b949e; }
     select, input[type="number"] {
       background: #0b0d10;
@@ -81,7 +105,24 @@
 </head>
 <body>
   <header>
-    <h1>LumiDI Strip Simulator</h1>
+    <h1>
+      <svg width="30" height="30" viewBox="0 0 64 64" aria-hidden="true">
+        <circle cx="32" cy="32" r="28" fill="#1b2027" stroke="#454f5b" stroke-width="3"/>
+        <rect x="29" y="51" width="6" height="7" rx="2" fill="#454f5b"/>
+        <circle cx="17" cy="35" r="7" fill="#ff3b30" opacity="0.3"/>
+        <circle cx="17" cy="35" r="4.5" fill="#ff3b30"/>
+        <circle cx="21.4" cy="24.4" r="7" fill="#ffb300" opacity="0.3"/>
+        <circle cx="21.4" cy="24.4" r="4.5" fill="#ffb300"/>
+        <circle cx="32" cy="20" r="7" fill="#34d158" opacity="0.3"/>
+        <circle cx="32" cy="20" r="4.5" fill="#34d158"/>
+        <circle cx="42.6" cy="24.4" r="7" fill="#2fb6ff" opacity="0.3"/>
+        <circle cx="42.6" cy="24.4" r="4.5" fill="#2fb6ff"/>
+        <circle cx="47" cy="35" r="7" fill="#b45bff" opacity="0.3"/>
+        <circle cx="47" cy="35" r="4.5" fill="#b45bff"/>
+      </svg>
+      <span>lu<span class="midi">MIDI</span></span>
+      <span class="sub">strip simulator</span>
+    </h1>
     <label>MIDI input
       <select id="midi-input"><option value="">— none —</option></select>
     </label>

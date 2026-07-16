@@ -44,10 +44,13 @@ The `.amxd` must stay in this folder — an unfrozen device finds
 - `SEND_NOTEOFFS` in `lumidi-engine.js` pairs every note-on with a velocity-0
   note-off so notes don't hang in Live's pipeline. The Teensy and the simulator
   both ignore them. Set it to `false` to A/B test if anything misbehaves.
-- **Solid** is event-driven: any color/brightness change (or anim switch,
-  re-enable) sends the complete frame once, then the device goes silent —
-  no idle MIDI stream. The full undiffed send means a previously dropped
-  message can't leave a pixel stale.
+- **Solid** is event-driven: a color/brightness change sends the complete
+  frame once, then the device goes silent — no idle MIDI stream. The full
+  undiffed send means a previously dropped message can't leave a pixel stale.
+- Solid dial drags are debounced (`SOLID_DEBOUNCE_MS`): intermediate values
+  only get a throttled preview frame every `SOLID_THROTTLE_MS`, and the final
+  frame goes out once the dial settles — dragging can't back up the pipeline.
+  Discrete events (anim switch, re-enable) skip the debounce.
 - **Animated modes** stream diffed frames per tick and additionally re-send
   the complete frame every ~2s (`REFRESH_TICKS`) to self-heal drops in
   Live's note pipeline.

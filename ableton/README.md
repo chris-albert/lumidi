@@ -44,8 +44,12 @@ The `.amxd` must stay in this folder — an unfrozen device finds
 - `SEND_NOTEOFFS` in `lumidi-engine.js` pairs every note-on with a velocity-0
   note-off so notes don't hang in Live's pipeline. The Teensy and the simulator
   both ignore them. Set it to `false` to A/B test if anything misbehaves.
-- The engine only sends channels that changed, but re-sends the complete frame
-  every ~2s (`REFRESH_TICKS`) so a message dropped by Live's note pipeline
-  can't leave a pixel stale.
+- **Solid** is event-driven: any color/brightness change (or anim switch,
+  re-enable) sends the complete frame once, then the device goes silent —
+  no idle MIDI stream. The full undiffed send means a previously dropped
+  message can't leave a pixel stale.
+- **Animated modes** stream diffed frames per tick and additionally re-send
+  the complete frame every ~2s (`REFRESH_TICKS`) to self-heal drops in
+  Live's note pipeline.
 - Live's device activator gates the stream: deactivating blacks out the strip
   and stops emitting; reactivating forces a full-frame resend.

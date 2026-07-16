@@ -22,10 +22,10 @@ var SHOW_NOTE = 127;
 // ignores velocity 0, so this is invisible downstream. Set false to A/B test.
 var SEND_NOTEOFFS = true;
 
-// Re-send the complete frame every N ticks (~2s at 30fps) even if unchanged.
-// Live's note pipeline can drop or chase messages (e.g. around device
-// enable/disable); without this, a lost write leaves a pixel stale forever
-// because the diff cache assumes delivery.
+// Animated modes only: re-send the complete frame every N ticks (~2s at
+// 30fps) so a message dropped by Live's note pipeline can't leave a pixel
+// stale. Solid mode is event-driven (full frame once per change, then
+// silence) and never uses this.
 var REFRESH_TICKS = 60;
 
 // Menu indices in the device's Sync Rate live.menu, in beats per cycle (4/4).
@@ -54,6 +54,7 @@ var phase = 0;            // 0..1 position in the animation cycle
 var lastTickMs = 0;
 var deviceActive = 1;     // Live's device activator (live.thisdevice outlet 1)
 var ticksSinceRefresh = 0;
+var solidDirty = true;    // solid mode: full frame pending (coalesced per tick)
 var frame = [];           // staged RGB values 0..255, length NUM_LEDS*3
 var lastVel = [];         // last velocity sent per channel, -1 = never sent
 resetBuffers();
@@ -69,10 +70,10 @@ function resetBuffers() {
 }
 
 // --- parameter messages from the patch ---
-function anim(i)       { p.anim = i | 0; }
-function hue(v)        { p.hue = v; sendSwatch(); }
-function sat(v)        { p.sat = v; sendSwatch(); }
-function brightness(v) { p.brightness = v; }
+function anim(i)       { p.anim = i | 0; invalidate(); solidDirty = true; }
+function hue(v)        { p.hue = v; sendSwatch(); solidDirty = true; }
+function sat(v)        { p.sat = v; sendSwatch(); solidDirty = true; }
+function brightness(v) { p.brightness = v; solidDirty = true; }
 function rate(v)       { p.rate = v; }
 function sync(v)       { p.sync = v | 0; }
 function syncrate(i)   { p.syncrate = i | 0; }
@@ -81,14 +82,14 @@ function dir(i)        { p.dir = i | 0; }
 function on(v) {
   p.on = v | 0;
   if (!p.on) blackout();
-  else invalidate(); // full resend in case anything was dropped while off
+  else { invalidate(); solidDirty = true; } // full resend on re-enable
 }
 
 // Live's device activator (live.thisdevice outlet 1)
 function active(v) {
   deviceActive = v | 0;
   if (!deviceActive) blackout();
-  else invalidate();
+  else { invalidate(); solidDirty = true; }
 }
 
 function invalidate() {
@@ -110,6 +111,19 @@ function tick() {
   if (dt < 0 || dt > 0.25) dt = 0.033; // reload / stall guard
 
   if (!p.on || !deviceActive) return;
+
+  if (p.anim === 0) {
+    // solid is event-driven: send the full frame once per change, then
+    // nothing. The dirty flag coalesces bursts (dial drags, preset load)
+    // into at most one full frame per tick.
+    if (solidDirty) {
+      solidDirty = false;
+      invalidate(); // full undiffed send so a prior drop can't leave a pixel stale
+      renderFrame();
+      sendFrame();
+    }
+    return;
+  }
 
   ticksSinceRefresh++;
   if (ticksSinceRefresh >= REFRESH_TICKS) {

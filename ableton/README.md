@@ -41,9 +41,15 @@ The `.amxd` must stay in this folder — an unfrozen device finds
 
 - Never send velocity 0 as a pixel write — it's a MIDI note-off and the firmware
   ignores it. Velocity 1 is the firmware's "write zero" escape.
-- `SEND_NOTEOFFS` in `lumidi-engine.js` pairs every note-on with a velocity-0
-  note-off so notes don't hang in Live's pipeline. The Teensy and the simulator
-  both ignore them. Set it to `false` to A/B test if anything misbehaves.
+- The strip only renders when note 127 ("show") arrives — pixel writes just
+  stage. The engine ends every batch with note 127, and the simulator logs it
+  (`note 127 (show) -> latch frame`) so you can verify latches are arriving.
+- `SEND_NOTEOFFS` in `lumidi-engine.js` sends a velocity-0 note-off for every
+  note-on so notes don't hang in Live's pipeline. Offs are *deferred* to the
+  start of the next batch/tick — never sent in the same instant as their
+  note-on, because Live can drop zero-length notes (which would eat pixel
+  writes and the show latch). The Teensy and the simulator both ignore them.
+  Set it to `false` to A/B test if anything misbehaves.
 - **Solid** is event-driven: a color/brightness change sends the complete
   frame once, then the device goes silent — no idle MIDI stream. The full
   undiffed send means a previously dropped message can't leave a pixel stale.

@@ -17,9 +17,15 @@ outlets = 2; // 0: "pitch velocity" lists -> [midiformat] -> [midiout]
 var NUM_LEDS = 19;
 var SHOW_NOTE = 127;
 
-// Emit a paired velocity-0 note-off after every note-on so notes never hang
-// in Live's pipeline. The Teensy has no note-off handler and the simulator
+// Emit a velocity-0 note-off for every note-on so notes never hang in
+// Live's pipeline. The Teensy has no note-off handler and the simulator
 // ignores velocity 0, so this is invisible downstream. Set false to A/B test.
+//
+// Note-offs are DEFERRED: a batch's offs are flushed at the start of the
+// next batch/tick, never in the same instant as their note-ons. A
+// zero-length on+off pair can be coalesced/dropped by Live's note pipeline,
+// which would eat pixel writes and — worse — the note-127 show latch the
+// firmware needs before it renders anything.
 var SEND_NOTEOFFS = true;
 
 // Animated modes only: re-send the complete frame every N ticks (~2s at
@@ -66,6 +72,7 @@ var solidDirtyMs = 0;     // when the pending change last arrived (0 = send now)
 var lastSolidSendMs = 0;  // last solid frame send, for the drag throttle
 var frame = [];           // staged RGB values 0..255, length NUM_LEDS*3
 var lastVel = [];         // last velocity sent per channel, -1 = never sent
+var pendingOffs = [];     // note-offs owed for the previous batch's note-ons
 resetBuffers();
 
 function resetBuffers() {
@@ -123,6 +130,8 @@ function tick() {
   var dt = lastTickMs ? (now - lastTickMs) / 1000 : 0;
   lastTickMs = now;
   if (dt < 0 || dt > 0.25) dt = 0.033; // reload / stall guard
+
+  flushOffs(); // release the previous batch's note-offs (even when gated)
 
   if (!p.on || !deviceActive) return;
 
@@ -201,6 +210,7 @@ function renderFrame() {
 
 // --- MIDI output ---
 function sendFrame() {
+  flushOffs(); // previous batch's offs always precede this batch's ons
   var i, vel, changed = false;
   for (i = 0; i < NUM_LEDS * 3; i++) {
     vel = toVel(frame[i]);
@@ -221,7 +231,13 @@ function blackout() {
 
 function noteOut(note, vel) {
   outlet(0, note, vel);
-  if (SEND_NOTEOFFS) outlet(0, note, 0);
+  if (SEND_NOTEOFFS) pendingOffs.push(note);
+}
+
+function flushOffs() {
+  var i;
+  for (i = 0; i < pendingOffs.length; i++) outlet(0, pendingOffs[i], 0);
+  pendingOffs = [];
 }
 
 // 0..255 brightness -> velocity, honoring the firmware's quirks:

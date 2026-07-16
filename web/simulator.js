@@ -52,6 +52,7 @@ function onMidiMessage(e) {
   if ((status & 0xf0) !== 0x90 || velocity === 0) return; // note-ons only, vel 0 = note-off
   if (note === 127) {
     latch();
+    log('note 127 (show)      -> latch frame');
     return;
   }
   if (note < numLeds * 3) {

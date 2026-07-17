@@ -34,12 +34,14 @@ var SEND_NOTEOFFS = true;
 // silence) and never uses this.
 var REFRESH_TICKS = 60;
 
-// Solid mode debounce: during a dial drag every intermediate value would be
-// a full-frame burst, flooding Live's note pipeline and lagging the strip.
-// While values keep arriving we send a throttled preview at most every
-// THROTTLE ms; the final frame goes out once the value settles for DEBOUNCE ms.
-var SOLID_DEBOUNCE_MS = 100;
-var SOLID_THROTTLE_MS = 250;
+// Static-output debounce — solid mode, or any mode while the transport is
+// stopped (animations only run with the song). During a dial drag every
+// intermediate value would be a full-frame burst, flooding Live's note
+// pipeline and lagging the strip. While values keep arriving we send a
+// throttled preview at most every THROTTLE ms; the final frame goes out
+// once the value settles for DEBOUNCE ms.
+var PUSH_DEBOUNCE_MS = 100;
+var PUSH_THROTTLE_MS = 250;
 
 // Menu indices in the device's Sync Rate live.menu, in beats per cycle (4/4).
 var SYNC_BEATS = [32, 16, 8, 4, 2, 1, 0.5, 0.25]; // 8bars..1/16
@@ -67,9 +69,9 @@ var phase = 0;            // 0..1 position in the animation cycle
 var lastTickMs = 0;
 var deviceActive = 1;     // Live's device activator (live.thisdevice outlet 1)
 var ticksSinceRefresh = 0;
-var solidDirty = true;    // solid mode: full frame pending
-var solidDirtyMs = 0;     // when the pending change last arrived (0 = send now)
-var lastSolidSendMs = 0;  // last solid frame send, for the drag throttle
+var pushDirty = true;     // static output: full frame pending
+var pushDirtyMs = 0;      // when the pending change last arrived (0 = send now)
+var lastPushMs = 0;       // last static frame send, for the drag throttle
 var frame = [];           // staged RGB values 0..255, length NUM_LEDS*3
 var lastVel = [];         // last velocity sent per channel, -1 = never sent
 var pendingOffs = [];     // note-offs owed for the previous batch's note-ons
@@ -86,31 +88,31 @@ function resetBuffers() {
 }
 
 // --- parameter messages from the patch ---
-function anim(i)       { p.anim = i | 0; invalidate(); solidNow(); }
-function hue(v)        { p.hue = v; sendSwatch(); solidSoon(); }
-function sat(v)        { p.sat = v; sendSwatch(); solidSoon(); }
-function brightness(v) { p.brightness = v; solidSoon(); }
+function anim(i)       { p.anim = i | 0; invalidate(); pushNow(); }
+function hue(v)        { p.hue = v; sendSwatch(); pushSoon(); }
+function sat(v)        { p.sat = v; sendSwatch(); pushSoon(); }
+function brightness(v) { p.brightness = v; pushSoon(); }
 function rate(v)       { p.rate = v; }
 function sync(v)       { p.sync = v | 0; }
 function syncrate(i)   { p.syncrate = i | 0; }
-function dir(i)        { p.dir = i | 0; }
+function dir(i)        { p.dir = i | 0; pushSoon(); }
 
 // debounced: dial drags settle before the final frame goes out
-function solidSoon() { solidDirty = true; solidDirtyMs = Date.now(); }
+function pushSoon() { pushDirty = true; pushDirtyMs = Date.now(); }
 // immediate: discrete events (anim switch, re-enable) skip the debounce
-function solidNow()  { solidDirty = true; solidDirtyMs = 0; }
+function pushNow()  { pushDirty = true; pushDirtyMs = 0; }
 
 function on(v) {
   p.on = v | 0;
   if (!p.on) blackout();
-  else { invalidate(); solidNow(); } // full resend on re-enable
+  else { invalidate(); pushNow(); } // full resend on re-enable
 }
 
 // Live's device activator (live.thisdevice outlet 1)
 function active(v) {
   deviceActive = v | 0;
   if (!deviceActive) blackout();
-  else { invalidate(); solidNow(); }
+  else { invalidate(); pushNow(); }
 }
 
 function invalidate() {
@@ -120,7 +122,16 @@ function invalidate() {
 
 function ticks(t)   { transTicks = t; }
 function tempo(b)   { if (b > 0) transTempo = b; }
-function playing(s) { transPlaying = s | 0; }
+
+function playing(s) {
+  s = s | 0;
+  if (s === transPlaying) return;
+  transPlaying = s;
+  // stop: push one final frame at the frozen phase, then go silent.
+  // start: full resend to self-heal anything dropped while static.
+  invalidate();
+  pushNow();
+}
 
 // --- main loop, driven by [metro 33] (arrives as a bang) ---
 function bang() { tick(); }
@@ -135,16 +146,18 @@ function tick() {
 
   if (!p.on || !deviceActive) return;
 
-  if (p.anim === 0) {
-    // solid is event-driven: send the full frame once per change, then
-    // nothing. Mid-drag values only get a throttled preview; the final
-    // frame goes out once the value has settled.
-    if (solidDirty) {
-      var settled = now - solidDirtyMs >= SOLID_DEBOUNCE_MS;
-      var preview = now - lastSolidSendMs >= SOLID_THROTTLE_MS;
+  if (p.anim === 0 || !transPlaying) {
+    // static output — solid mode, or any animation while the song is
+    // stopped (animations only move with the transport; the frame freezes
+    // at the current phase). Event-driven: send the full frame once per
+    // change, then nothing. Mid-drag values only get a throttled preview;
+    // the final frame goes out once the value has settled.
+    if (pushDirty) {
+      var settled = now - pushDirtyMs >= PUSH_DEBOUNCE_MS;
+      var preview = now - lastPushMs >= PUSH_THROTTLE_MS;
       if (settled || preview) {
-        if (settled) solidDirty = false;
-        lastSolidSendMs = now;
+        if (settled) pushDirty = false;
+        lastPushMs = now;
         invalidate(); // full undiffed send so a prior drop can't leave a pixel stale
         renderFrame();
         sendFrame();
@@ -152,6 +165,8 @@ function tick() {
     }
     return;
   }
+
+  pushDirty = false; // streaming applies param changes every frame anyway
 
   ticksSinceRefresh++;
   if (ticksSinceRefresh >= REFRESH_TICKS) {
@@ -164,14 +179,12 @@ function tick() {
   sendFrame();
 }
 
+// Only called while the transport is playing.
 function advancePhase(dt) {
   var beatsPerCycle = SYNC_BEATS[p.syncrate] || 4;
-  if (p.sync && transPlaying) {
+  if (p.sync) {
     // beat-locked: derive phase directly from Live's transport position
     phase = (transTicks / 480) / beatsPerCycle;
-  } else if (p.sync) {
-    // transport stopped: free-run at the tempo-implied rate
-    phase += dt * (transTempo / 60) / beatsPerCycle;
   } else {
     phase += dt * p.rate;
   }

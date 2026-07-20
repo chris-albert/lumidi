@@ -24,6 +24,10 @@ The `.amxd` must stay in this folder — an unfrozen device finds
    **Hue / Sat / Bright** (color; swatch shows the result), **Rate** (free-run speed),
    **Sync + SyncRate** (lock the animation cycle to Live's transport, e.g. 1 bar).
    All parameters are automatable.
+4. Animations only run while the song is playing — stopped transport freezes the
+   frame (color changes still apply). Sync is on by default, so the animation
+   cycle follows Live's tempo and song position; turn Sync off to free-run at
+   the Rate dial's speed instead (still gated by the transport).
 
 ## Development
 
@@ -53,10 +57,12 @@ The `.amxd` must stay in this folder — an unfrozen device finds
 - **Solid** is event-driven: a color/brightness change sends the complete
   frame once, then the device goes silent — no idle MIDI stream. The full
   undiffed send means a previously dropped message can't leave a pixel stale.
-- Solid dial drags are debounced (`SOLID_DEBOUNCE_MS`): intermediate values
-  only get a throttled preview frame every `SOLID_THROTTLE_MS`, and the final
-  frame goes out once the dial settles — dragging can't back up the pipeline.
-  Discrete events (anim switch, re-enable) skip the debounce.
+- Dial drags on static output are debounced (`PUSH_DEBOUNCE_MS`): intermediate
+  values only get a throttled preview frame every `PUSH_THROTTLE_MS`, and the
+  final frame goes out once the dial settles — dragging can't back up the
+  pipeline. Discrete events (anim switch, re-enable) skip the debounce.
+- Animated modes stream only while Live's transport is playing; stopping sends
+  one frame frozen at the current phase, then goes silent like solid mode.
 - **Animated modes** stream diffed frames per tick and additionally re-send
   the complete frame every ~2s (`REFRESH_TICKS`) to self-heal drops in
   Live's note pipeline.

@@ -507,7 +507,7 @@
 								"on"
 							],
 							"parameter_initial": [
-								0
+								1
 							],
 							"parameter_initial_enable": 1,
 							"parameter_longname": "Sync",

@@ -41,6 +41,26 @@ The `.amxd` must stay in this folder — an unfrozen device finds
 - The engine is testable without Max: see the harness pattern in the repo history
   (stub `outlet()`, load the file, feed it `tick`/parameter messages).
 
+## Debugging
+
+The device shows a live debug readout on its right edge:
+
+- **top number ("alive")** — total engine ticks; it should climb continuously.
+  Frozen = the metro or the js object is dead (check the Max window).
+- **bottom number ("sent")** — MIDI messages emitted in the last second.
+  Solid color sitting idle = 0; changing a color = a brief burst; a playing
+  animation ≈ 3500.
+- **gate word** — what the engine is doing / what's blocking output:
+  `solid` (idle, event-driven), `playing` (streaming animation),
+  `waiting-for-play` (animation selected but Live's transport is stopped),
+  `off` (On toggle), `bypassed` (device activator), `error` (tick threw —
+  the exception is posted to the Max window).
+
+For more detail, right-click the device title bar → **Open Max Window**:
+every engine hot-reload posts `lumidi-engine loaded`, tick exceptions are
+posted once per distinct error, and sending the message `status` to the js
+object dumps the complete engine state (params, transport, gate, counters).
+
 ## Protocol notes
 
 - Never send velocity 0 as a pixel write — it's a MIDI note-off and the firmware

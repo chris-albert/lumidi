@@ -11,8 +11,9 @@
 
 autowatch = 1;
 inlets = 1;
-outlets = 2; // 0: "pitch velocity" lists -> [midiformat] -> [midiout]
+outlets = 3; // 0: "pitch velocity" lists -> [midiformat] -> [midiout]
              // 1: "r g b" floats (0..1) -> [swatch] display
+             // 2: debug status ("alive n" / "sent n" / "gate word"), ~1/sec
 
 var NUM_LEDS = 19;
 var SHOW_NOTE = 127;
@@ -75,6 +76,13 @@ var lastPushMs = 0;       // last static frame send, for the drag throttle
 var frame = [];           // staged RGB values 0..255, length NUM_LEDS*3
 var lastVel = [];         // last velocity sent per channel, -1 = never sent
 var pendingOffs = [];     // note-offs owed for the previous batch's note-ons
+
+// --- debug state (reported on outlet 2 about once a second) ---
+var DBG_STATUS_TICKS = 30;
+var dbgAlive = 0;         // total metro bangs — a frozen counter means metro/js is dead
+var dbgSent = 0;          // outlet-0 messages since the last status report
+var dbgSinceStatus = 0;
+var lastError = "";       // last exception thrown by tick(), "" when healthy
 resetBuffers();
 
 function resetBuffers() {
@@ -134,7 +142,59 @@ function playing(s) {
 }
 
 // --- main loop, driven by [metro 33] (arrives as a bang) ---
-function bang() { tick(); }
+function bang() {
+  dbgAlive++;
+  try {
+    tick();
+    lastError = "";
+  } catch (err) {
+    var msg = String(err && err.message ? err.message : err);
+    if (msg !== lastError) {
+      lastError = msg;
+      dbg("lumidi-engine: tick failed: " + msg);
+    }
+  }
+  dbgSinceStatus++;
+  if (dbgSinceStatus >= DBG_STATUS_TICKS) {
+    dbgSinceStatus = 0;
+    sendStatus();
+  }
+}
+
+// which gate (if any) is blocking output right now
+function gateWord() {
+  if (lastError) return "error";
+  if (!deviceActive) return "bypassed";
+  if (!p.on) return "off";
+  if (p.anim === 0) return "solid";
+  if (!transPlaying) return "waiting-for-play";
+  return "playing";
+}
+
+function sendStatus() {
+  outlet(2, "alive", dbgAlive);
+  outlet(2, "sent", dbgSent);
+  outlet(2, "gate", gateWord());
+  dbgSent = 0;
+}
+
+// send the message "status" to the js object (or use the Max window after
+// right-click -> Open Max Window) for a full state dump
+function status() {
+  dbg("lumidi-engine status: gate=" + gateWord()
+    + " lastError=" + (lastError ? "[" + lastError + "]" : "none")
+    + " | anim=" + p.anim + " hue=" + Math.round(p.hue) + " sat=" + Math.round(p.sat)
+    + " bright=" + Math.round(p.brightness) + " rate=" + p.rate
+    + " sync=" + p.sync + " syncrate=" + p.syncrate + " dir=" + p.dir + " on=" + p.on
+    + " | active=" + deviceActive + " playing=" + transPlaying
+    + " ticks=" + Math.round(transTicks) + " tempo=" + transTempo
+    + " phase=" + (Math.round(phase * 1000) / 1000)
+    + " | alive=" + dbgAlive + " pendingOffs=" + pendingOffs.length);
+}
+
+function dbg(s) {
+  if (typeof post === "function") post(s + "\n");
+}
 
 function tick() {
   var now = Date.now();
@@ -244,12 +304,14 @@ function blackout() {
 
 function noteOut(note, vel) {
   outlet(0, note, vel);
+  dbgSent++;
   if (SEND_NOTEOFFS) pendingOffs.push(note);
 }
 
 function flushOffs() {
   var i;
   for (i = 0; i < pendingOffs.length; i++) outlet(0, pendingOffs[i], 0);
+  dbgSent += pendingOffs.length;
   pendingOffs = [];
 }
 
@@ -288,3 +350,6 @@ function hsvToRgb(h, s, v) {
   else              { r = c; g = 0; b = x; }
   return [(r + m) * 255, (g + m) * 255, (b + m) * 255];
 }
+
+// posted on every compile so hot-reloads are visible in the Max window
+dbg("lumidi-engine loaded");

@@ -21,6 +21,8 @@ let ledEls = [];
 let activeInput = null;
 let frames = 0;
 let msgs = 0;
+let staged = 0;     // pixel writes since the last latch — stuck > 0 means note 127 went missing
+let lastShowAt = 0; // Date.now() of the last latch, 0 = never
 let logLines = [];
 let logDirty = false;
 
@@ -37,6 +39,8 @@ function buildStrip() {
 }
 
 function latch() {
+  staged = 0;
+  lastShowAt = Date.now();
   for (let i = 0; i < numLeds; i++) {
     const r = staging[i * 3], g = staging[i * 3 + 1], b = staging[i * 3 + 2];
     const el = ledEls[i];
@@ -62,6 +66,7 @@ function onMidiMessage(e) {
     let v = velocity * 2;
     if (v === 2) v = 0; // firmware's "velocity 1 writes zero" escape
     staging[note] = v;
+    staged++;
     log(`note ${String(note).padStart(3)} vel ${String(velocity).padStart(3)}  -> led ${Math.floor(note / 3)} ${'RGB'[note % 3]} = ${v}`);
   }
 }
@@ -116,9 +121,22 @@ function refreshInputs(midi) {
 async function init() {
   buildStrip();
   countEl.addEventListener('change', buildStrip);
+  document.getElementById('force-show').addEventListener('click', () => {
+    log('--- manual show ---');
+    latch();
+  });
   setInterval(renderLog, 100);
   setInterval(() => {
-    statsEl.textContent = `${frames} fps · ${msgs} msg/s`;
+    // staged writes with no latch for a while = the note-127 show never
+    // arrived — the strip (and the hardware) would sit on a stale frame
+    const noShow = staged > 0 && (!lastShowAt || Date.now() - lastShowAt > 1500);
+    let text = `${frames} fps · ${msgs} msg/s · staged ${staged}`;
+    if (noShow) {
+      const since = lastShowAt ? `${Math.round((Date.now() - lastShowAt) / 1000)}s ago` : 'never';
+      text += ` — no show! (last: ${since})`;
+    }
+    statsEl.textContent = text;
+    statsEl.classList.toggle('warn', noShow);
     frames = 0;
     msgs = 0;
   }, 1000);

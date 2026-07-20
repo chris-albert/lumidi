@@ -53,7 +53,7 @@
       padding-bottom: 2px;
     }
     label { display: flex; align-items: center; gap: 8px; color: #8b949e; }
-    select, input[type="number"] {
+    select, input[type="number"], button {
       background: #0b0d10;
       color: #c9d1d9;
       border: 1px solid #30363d;
@@ -61,6 +61,9 @@
       padding: 4px 8px;
       font: inherit;
     }
+    button { cursor: pointer; }
+    button:hover { border-color: #58a6ff; }
+    #stats.warn { color: #ff7b72; }
     input[type="number"] { width: 64px; }
     #stats { margin-left: auto; color: #8b949e; font-variant-numeric: tabular-nums; }
     #strip {
@@ -129,7 +132,8 @@
     <label>LEDs
       <input id="led-count" type="number" min="1" max="42" value="19">
     </label>
-    <span id="stats">0.0 fps</span>
+    <button id="force-show" title="Manually latch the staged frame (what a note 127 would do)">Show</button>
+    <span id="stats">0 fps</span>
   </header>
   <div id="banner"></div>
   <div id="strip"></div>

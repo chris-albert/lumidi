@@ -14,6 +14,8 @@ const countEl = document.getElementById('led-count');
 const statsEl = document.getElementById('stats');
 const logEl = document.getElementById('log');
 const bannerEl = document.getElementById('banner');
+const swatchEl = document.getElementById('color-swatch');
+const swatchInfoEl = document.getElementById('color-info');
 
 let numLeds = 19;
 let staging = new Uint8Array(MAX_NOTE_LEDS * 3);
@@ -44,13 +46,39 @@ function latch() {
   for (let i = 0; i < numLeds; i++) {
     const r = staging[i * 3], g = staging[i * 3 + 1], b = staging[i * 3 + 2];
     const el = ledEls[i];
-    el.style.background = `rgb(${Math.max(r, 20)}, ${Math.max(g, 20)}, ${Math.max(b, 20)})`;
+    // exact decoded color — no minimum floor, it would desaturate everything
+    el.style.background = `rgb(${r}, ${g}, ${b})`;
     const glow = Math.max(r, g, b);
     el.style.boxShadow = glow > 8
       ? `0 0 ${6 + glow / 8}px ${2 + glow / 24}px rgba(${r}, ${g}, ${b}, 0.8)`
       : 'none';
   }
+  updateColorPanel();
   frames++;
+}
+
+// square panel showing LED 0's exact decoded color, with numbers to compare
+// against the device's Hue/Sat/Bright dials
+function updateColorPanel() {
+  const r = staging[0], g = staging[1], b = staging[2];
+  swatchEl.style.background = `rgb(${r}, ${g}, ${b})`;
+  const [h, s, v] = rgbToHsv(r, g, b);
+  swatchInfoEl.textContent = `rgb(${r}, ${g}, ${b}) · H ${h}° S ${s}% V ${v}%`;
+}
+
+function rgbToHsv(r, g, b) {
+  const max = Math.max(r, g, b) / 255, min = Math.min(r, g, b) / 255;
+  const d = max - min;
+  let h = 0;
+  if (d > 0) {
+    const rr = r / 255, gg = g / 255, bb = b / 255;
+    if (max === rr) h = 60 * (((gg - bb) / d) % 6);
+    else if (max === gg) h = 60 * ((bb - rr) / d + 2);
+    else h = 60 * ((rr - gg) / d + 4);
+    if (h < 0) h += 360;
+  }
+  const s = max === 0 ? 0 : d / max;
+  return [Math.round(h), Math.round(s * 100), Math.round(max * 100)];
 }
 
 function onMidiMessage(e) {

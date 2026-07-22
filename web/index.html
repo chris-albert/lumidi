@@ -64,6 +64,21 @@
     button { cursor: pointer; }
     button:hover { border-color: #58a6ff; }
     #stats.warn { color: #ff7b72; }
+    #color-panel {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #8b949e;
+      font: 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-variant-numeric: tabular-nums;
+    }
+    #color-swatch {
+      width: 26px;
+      height: 26px;
+      border-radius: 5px;
+      border: 1px solid #30363d;
+      background: rgb(0, 0, 0);
+    }
     input[type="number"] { width: 64px; }
     #stats { margin-left: auto; color: #8b949e; font-variant-numeric: tabular-nums; }
     #strip {
@@ -133,6 +148,10 @@
       <input id="led-count" type="number" min="1" max="42" value="19">
     </label>
     <button id="force-show" title="Manually latch the staged frame (what a note 127 would do)">Show</button>
+    <span id="color-panel" title="Exact decoded color of LED 1 — compare against the device's Hue/Sat/Bright dials">
+      <span id="color-swatch"></span>
+      <span id="color-info">—</span>
+    </span>
     <span id="stats">0 fps</span>
   </header>
   <div id="banner"></div>

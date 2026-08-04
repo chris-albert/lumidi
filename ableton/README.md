@@ -32,7 +32,11 @@ The `.amxd` must stay in this folder — an unfrozen device finds
 ## Development
 
 - Edit `lumidi-engine.js` in any editor — `autowatch = 1` hot-reloads it while the
-  device is open (touch a control afterwards to re-push parameter state).
+  device is open. A reload resets the engine's internal parameter state, so on
+  its first tick after any compile the engine sends `resync` out its debug
+  outlet and the patch answers by sending `outputvalue` to every control —
+  the dials re-push their values automatically (no need to touch a control).
+  Note `bang` would NOT work for this: it flips `live.toggle` state.
 - Edit the UI by opening the device in Max (click the device's edit button in Live).
   If you save from Max, the `.amxd` on disk changes — extract the JSON back into
   `lumidi.maxpat` (the ptch chunk is the patcher JSON; see `build_amxd.py`).
@@ -57,9 +61,12 @@ The device shows a live debug readout on its right edge:
   the exception is posted to the Max window).
 
 For more detail, right-click the device title bar → **Open Max Window**:
-every engine hot-reload posts `lumidi-engine loaded`, tick exceptions are
-posted once per distinct error, and sending the message `status` to the js
-object dumps the complete engine state (params, transport, gate, counters).
+every engine hot-reload posts `lumidi-engine loaded` followed by
+`fresh compile — requested parameter resync` (the engine re-pulling the
+dials' values; if the resync line is missing, the device was built from a
+stale patcher — re-drag the `.amxd`), tick exceptions are posted once per
+distinct error, and sending the message `status` to the js object dumps
+the complete engine state (params, transport, gate, counters).
 
 ## Protocol notes
 

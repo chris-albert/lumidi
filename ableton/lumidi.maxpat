@@ -216,14 +216,15 @@
 								"Solid",
 								"Pulse",
 								"Chase",
-								"Rainbow"
+								"Rainbow",
+								"Strobe"
 							],
 							"parameter_initial": [
 								0
 							],
 							"parameter_initial_enable": 1,
 							"parameter_longname": "Animation",
-							"parameter_mmax": 3,
+							"parameter_mmax": 4,
 							"parameter_shortname": "Anim",
 							"parameter_type": 2
 						}

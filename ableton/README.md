@@ -26,7 +26,8 @@ The `.amxd` must stay in this folder — an unfrozen device finds
    midiout` passthrough and Live's feedback protection silently clamps the
    track's output for seconds at a time (knob changes appear to be randomly
    ignored downstream while the engine logs perfect bursts).
-4. Controls: **On**, **Animation** (Solid / Pulse / Chase / Rainbow), **Direction**,
+4. Controls: **On**, **Animation** (Solid / Pulse / Chase / Rainbow / Strobe —
+   Strobe is the hard pulse: full on for the first half of each cycle, no fade), **Direction**,
    **Hue / Sat / Bright** (color; swatch shows the result), **Rate** (free-run speed),
    **Sync + SyncRate** (lock the animation cycle to Live's transport, e.g. 1 bar).
    All parameters are automatable.

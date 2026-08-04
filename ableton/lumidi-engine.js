@@ -48,7 +48,7 @@ var SYNC_BEATS = [32, 16, 8, 4, 2, 1, 0.5, 0.25]; // 8bars..1/16
 
 // --- parameters (pushed from the patch via [prepend <name>]) ---
 var p = {
-  anim: 0,        // 0 solid, 1 pulse, 2 chase, 3 rainbow
+  anim: 0,        // 0 solid, 1 pulse, 2 chase, 3 rainbow, 4 strobe
   hue: 0,         // degrees 0..360
   sat: 100,       // percent
   brightness: 80, // percent, master dimmer
@@ -284,9 +284,13 @@ function renderFrame() {
       level = Math.max(0, 1 - d / (NUM_LEDS * 0.5));
       level = level * level;                    // sharper falloff
       rgb = [base[0] * level, base[1] * level, base[2] * level];
-    } else { // rainbow: hue gradient scrolling along the strip
+    } else if (p.anim === 3) { // rainbow: hue gradient scrolling along the strip
       h = p.hue + (i / NUM_LEDS) * 360 + (p.dir ? -1 : 1) * phase * 360;
       rgb = hsvToRgb(h, s, 1);
+    } else { // strobe: hard pulse — full on for the first half of the
+             // cycle (lands on the beat, like pulse's peak), then off
+      level = phase < 0.5 ? 1 : 0;
+      rgb = [base[0] * level, base[1] * level, base[2] * level];
     }
     frame[i * 3]     = rgb[0] * master;
     frame[i * 3 + 1] = rgb[1] * master;

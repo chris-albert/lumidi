@@ -18,13 +18,15 @@ outlets = 3; // 0: "pitch velocity" lists -> [midiformat] -> [midiout]
 var NUM_LEDS = 19;
 var SHOW_NOTE = 127;
 
-// Velocity-0 note-off after every note-on (deferred one tick, so Live can't
-// coalesce a zero-length pair). DISABLED: the offs were tested as a burst-loss
-// suspect and exonerated — Live eats whole bursts with offs on or off — so
-// they stay off to halve the traffic through a demonstrably lossy pipeline.
-// The Teensy has no note-off handler and the simulator ignores velocity 0,
-// so nothing downstream ever needed them. Flag kept for A/B testing.
-var SEND_NOTEOFFS = false;
+// Velocity-0 note-off after every note-on, DEFERRED one tick so Live can't
+// coalesce a zero-length pair (which would eat pixel writes or the show
+// latch). REQUIRED for animated modes: Live bookkeeps open notes on its
+// MIDI outputs, and streaming the same 57 pitches ~30x/sec with no offs
+// grows that set by ~1700 notes/sec until the routing chokes — animations
+// froze after a bar or two when this was off. Downstream doesn't care
+// either way (the Teensy has no note-off handler, the simulator ignores
+// velocity 0); the offs exist purely to keep Live's pipeline healthy.
+var SEND_NOTEOFFS = true;
 
 // Animated modes only: re-send the complete frame every N ticks (~2s at
 // 30fps) so a message dropped by Live's note pipeline can't leave a pixel

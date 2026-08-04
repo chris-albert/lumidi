@@ -68,6 +68,21 @@ stale patcher — re-drag the `.amxd`), tick exceptions are posted once per
 distinct error, and sending the message `status` to the js object dumps
 the complete engine state (params, transport, gate, counters).
 
+The Max window also gets one line per event-driven MIDI batch (solid /
+stopped-transport output; streaming animation is not posted):
+
+```
+burst: 57 on + 0 off + 1 show | gate=solid hue=240 sat=100 bright=80
+burst: 0 on + 58 off + 0 show | gate=solid hue=240 sat=100 bright=80
+```
+
+A knob turn must post exactly that shape: the full frame (57 ons + 1 show),
+then its deferred note-offs alone one tick later. Use it to split "the
+device is broken" from "Live is eating the notes": if the burst line says
+57/1 but MIDI Monitor.app on the IAC bus saw fewer, the loss is downstream
+of the device; if the line itself is short or says `ONS WITHOUT SHOW`, the
+engine broke mid-frame (gate will read `error` with the exception above).
+
 ## Protocol notes
 
 - Never send velocity 0 as a pixel write — it's a MIDI note-off and the firmware

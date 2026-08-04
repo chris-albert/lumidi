@@ -92,6 +92,7 @@ var dbgAlive = 0;         // total metro bangs — a frozen counter means metro/
 var dbgSent = 0;          // outlet-0 messages since the last status report
 var dbgSinceStatus = 0;
 var lastError = "";       // last exception thrown by tick(), "" when healthy
+var dbgBurst = { on: 0, off: 0, show: 0 }; // this tick's emissions, by kind
 resetBuffers();
 
 function resetBuffers() {
@@ -173,6 +174,27 @@ function bang() {
     dbgSinceStatus = 0;
     sendStatus();
   }
+  reportBurst();
+}
+
+// Post every event-driven batch to the Max window so the device itself
+// testifies to what it emitted. A knob turn in solid mode must read
+// "57 on + 0 off + 1 show" (the matching offs post alone one tick later) —
+// anything else is the smoking gun. Compare against MIDI Monitor.app on the
+// IAC bus: device says 57 but the bus saw fewer = Live's pipeline is eating
+// them; "ONS WITHOUT SHOW" = the engine itself broke mid-frame (gate=error
+// and the exception will be right above). Streaming animation would flood
+// the window, so gate=playing bursts are not posted.
+function reportBurst() {
+  var b = dbgBurst;
+  if (!b.on && !b.off && !b.show) return;
+  dbgBurst = { on: 0, off: 0, show: 0 };
+  if (gateWord() === "playing") return;
+  var line = "burst: " + b.on + " on + " + b.off + " off + " + b.show + " show"
+    + " | gate=" + gateWord() + " hue=" + Math.round(p.hue)
+    + " sat=" + Math.round(p.sat) + " bright=" + Math.round(p.brightness);
+  if (b.on > 0 && b.show === 0) line += "  << ONS WITHOUT SHOW - frame will never render!";
+  dbg(line);
 }
 
 // which gate (if any) is blocking output right now
@@ -319,6 +341,7 @@ function blackout() {
 function noteOut(note, vel) {
   outlet(0, note, vel);
   dbgSent++;
+  if (note === SHOW_NOTE) dbgBurst.show++; else dbgBurst.on++;
   if (SEND_NOTEOFFS) pendingOffs.push(note);
 }
 
@@ -326,6 +349,7 @@ function flushOffs() {
   var i;
   for (i = 0; i < pendingOffs.length; i++) outlet(0, pendingOffs[i], 0);
   dbgSent += pendingOffs.length;
+  dbgBurst.off += pendingOffs.length;
   pendingOffs = [];
 }
 

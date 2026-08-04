@@ -41,6 +41,7 @@ function buildStrip() {
 }
 
 function latch() {
+  const writes = staged;
   staged = 0;
   lastShowAt = Date.now();
   for (let i = 0; i < numLeds; i++) {
@@ -55,6 +56,9 @@ function latch() {
   }
   updateColorPanel();
   frames++;
+  // one glanceable line per frame: when it landed, how many writes it
+  // carried, and what LED 1 came out as — correlate against knob turns
+  log(`show: latched ${writes} writes · led0 rgb(${staging[0]}, ${staging[1]}, ${staging[2]})`);
 }
 
 // square panel showing LED 0's exact decoded color, with numbers to compare
@@ -86,8 +90,7 @@ function onMidiMessage(e) {
   msgs++;
   if ((status & 0xf0) !== 0x90 || velocity === 0) return; // note-ons only, vel 0 = note-off
   if (note === 127) {
-    latch();
-    log('note 127 (show)      -> latch frame');
+    latch(); // logs its own summary line
     return;
   }
   if (note < numLeds * 3) {
@@ -102,8 +105,16 @@ function onMidiMessage(e) {
 // The MIDI handler runs per message (100s/sec while animating) — touching the
 // DOM there stalls the page and backs up the whole MIDI event queue. log()
 // only buffers; a 100ms interval in init() renders the log at most 10x/sec.
+// wall-clock timestamp (0.1s resolution) so "I turned the knob at :03"
+// can be matched against what actually arrived
+function ts() {
+  const d = new Date();
+  const p2 = n => String(n).padStart(2, '0');
+  return `${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}.${Math.floor(d.getMilliseconds() / 100)}`;
+}
+
 function log(line) {
-  logLines.push(line);
+  logLines.push(`${ts()} ${line}`);
   if (logLines.length > 400) logLines = logLines.slice(-200);
   logDirty = true;
 }
@@ -131,6 +142,7 @@ function selectInput(midi, id) {
       log(`--- listening on "${activeInput.name}" ---`);
     }
   }
+  if (!activeInput) log('--- no MIDI input selected ---');
 }
 
 function refreshInputs(midi) {
@@ -163,8 +175,9 @@ async function init() {
       const since = lastShowAt ? `${Math.round((Date.now() - lastShowAt) / 1000)}s ago` : 'never';
       text += ` — no show! (last: ${since})`;
     }
+    if (!activeInput) text += ' — no MIDI input!';
     statsEl.textContent = text;
-    statsEl.classList.toggle('warn', noShow);
+    statsEl.classList.toggle('warn', noShow || !activeInput);
     frames = 0;
     msgs = 0;
   }, 1000);
@@ -176,7 +189,12 @@ async function init() {
   try {
     const midi = await navigator.requestMIDIAccess();
     refreshInputs(midi);
-    midi.onstatechange = () => refreshInputs(midi);
+    midi.onstatechange = (e) => {
+      // ports come and go silently (sleep/wake, Live start/stop, IAC edits)
+      // — a disconnect here is the classic "the UI just stopped reacting"
+      if (e.port) log(`--- midi ${e.port.type} "${e.port.name}": ${e.port.state}/${e.port.connection} ---`);
+      refreshInputs(midi);
+    };
     inputSel.addEventListener('change', () => selectInput(midi, inputSel.value));
   } catch (err) {
     banner(`MIDI access denied: ${err.message}`);

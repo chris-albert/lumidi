@@ -74,23 +74,11 @@ stale patcher — re-drag the `.amxd`), tick exceptions are posted once per
 distinct error, and sending the message `status` to the js object dumps
 the complete engine state (params, transport, gate, counters).
 
-The Max window also gets one line per event-driven MIDI batch (solid /
-stopped-transport output; streaming animation is not posted):
-
-```
-burst: 57 on + 0 off + 1 show | gate=solid hue=240 sat=100 bright=80
-burst: 57 on + 0 off + 1 show | gate=solid hue=240 sat=100 bright=80 (resend)
-```
-
-A knob turn must post exactly that shape: the settled frame (57 ons +
-1 show) followed by its insurance resends (`(resend)`, ~400ms apart). With
-`SEND_NOTEOFFS` enabled the deferred offs also post alone one tick after
-each batch (`0 on + 58 off + 0 show`). Use the lines to split "the device
-is broken" from "Live is eating the notes": if the burst line says 57/1
-but MIDI Monitor.app on the IAC bus saw fewer, the loss is downstream of
-the device (first suspect: the MIDI From feedback loop — Use, step 3); if
-the line itself is short or says `ONS WITHOUT SHOW`, the engine broke
-mid-frame (gate will read `error` with the exception above).
+If output ever goes missing again, split "device broken" from "Live eating
+notes" by comparing the device's "sent" counter against MIDI Monitor.app on
+the IAC bus (first suspect: the MIDI From feedback loop — Use, step 3).
+The repo history (PR #12) has a per-burst Max-window accounting mode that
+can be restored for deeper digging.
 
 ## Protocol notes
 
@@ -106,16 +94,12 @@ mid-frame (gate will read `error` with the exception above).
   handler and the simulator ignores velocity 0. Flag kept for A/B tests.
 - **A misrouted track can silently eat entire bursts**: with MIDI From set
   to "All Ins" the track hears its own IAC output, the feedback loop trips
-  Live's protection, and output is clamped for seconds at a time (the engine
-  logs `57 on + 1 show` while MIDI Monitor on the bus sees zero). The fix is
-  MIDI From "No Input" (Use, step 3); the engine's bounded insurance resends
-  (below) are kept anyway as cheap protection against any transient drop.
+  Live's protection, and output is clamped for seconds at a time (the
+  device emits perfectly while MIDI Monitor on the bus sees zero). The fix
+  is MIDI From "No Input" (Use, step 3).
 - **Solid** is event-driven: a color/brightness change sends the complete
-  frame, re-sends it 3 more times (~400ms apart, logged as `(resend)`) as
-  insurance against a burst being eaten, then the device goes silent — no
-  idle MIDI stream. Resends are full undiffed frames ending in the show
-  note, so downstream they're idempotent; new input cancels pending resends.
-  Blackouts (On toggle / device deactivate) get the same insurance.
+  frame once, then the device goes silent — no idle MIDI stream. The full
+  undiffed send means a previously dropped message can't leave a pixel stale.
 - Dial drags on static output are debounced (`PUSH_DEBOUNCE_MS`): intermediate
   values only get a throttled preview frame every `PUSH_THROTTLE_MS`, and the
   final frame goes out once the dial settles — dragging can't back up the

@@ -18,16 +18,24 @@ outlets = 3; // 0: "pitch velocity" lists -> [midiformat] -> [midiout]
 var NUM_LEDS = 19;
 var SHOW_NOTE = 127;
 
-// Emit a velocity-0 note-off for every note-on so notes never hang in
-// Live's pipeline. The Teensy has no note-off handler and the simulator
-// ignores velocity 0, so this is invisible downstream. Set false to A/B test.
-//
-// Note-offs are DEFERRED: a batch's offs are flushed at the start of the
-// next batch/tick, never in the same instant as their note-ons. A
-// zero-length on+off pair can be coalesced/dropped by Live's note pipeline,
-// which would eat pixel writes and — worse — the note-127 show latch the
-// firmware needs before it renders anything.
-var SEND_NOTEOFFS = true;
+// Velocity-0 note-off after every note-on (deferred one tick, so Live can't
+// coalesce a zero-length pair). DISABLED: the offs were tested as a burst-loss
+// suspect and exonerated — Live eats whole bursts with offs on or off — so
+// they stay off to halve the traffic through a demonstrably lossy pipeline.
+// The Teensy has no note-off handler and the simulator ignores velocity 0,
+// so nothing downstream ever needed them. Flag kept for A/B testing.
+var SEND_NOTEOFFS = false;
+
+// Live's pipeline INTERMITTENTLY EATS ENTIRE BURSTS between [midiout] and
+// the track's MIDI To: the engine logs "57 on + 1 show" while MIDI Monitor
+// on the IAC bus sees zero. Slow dial drags always recovered because every
+// 250ms preview was another chance; a quick flick got one chance and could
+// lose it. So every settled static frame is re-sent RESENDS more times,
+// RESEND_MS apart — bounded brute force, then silence as usual. Resends are
+// full undiffed frames ending in the show note, so they're idempotent
+// downstream; new input cancels pending resends (the new frame supersedes).
+var RESENDS = 3;
+var RESEND_MS = 400;
 
 // Animated modes only: re-send the complete frame every N ticks (~2s at
 // 30fps) so a message dropped by Live's note pipeline can't leave a pixel
@@ -73,6 +81,8 @@ var ticksSinceRefresh = 0;
 var pushDirty = true;     // static output: full frame pending
 var pushDirtyMs = 0;      // when the pending change last arrived (0 = send now)
 var lastPushMs = 0;       // last static frame send, for the drag throttle
+var resendsLeft = 0;      // insurance resends still owed for the last frame
+var nextResendAt = 0;     // Date.now() the next insurance resend is due
 var frame = [];           // staged RGB values 0..255, length NUM_LEDS*3
 var lastVel = [];         // last velocity sent per channel, -1 = never sent
 var pendingOffs = [];     // note-offs owed for the previous batch's note-ons
@@ -93,6 +103,7 @@ var dbgSent = 0;          // outlet-0 messages since the last status report
 var dbgSinceStatus = 0;
 var lastError = "";       // last exception thrown by tick(), "" when healthy
 var dbgBurst = { on: 0, off: 0, show: 0 }; // this tick's emissions, by kind
+var dbgResend = false;    // this tick's burst was an insurance resend
 resetBuffers();
 
 function resetBuffers() {
@@ -116,9 +127,9 @@ function syncrate(i)   { p.syncrate = i | 0; }
 function dir(i)        { p.dir = i | 0; pushSoon(); }
 
 // debounced: dial drags settle before the final frame goes out
-function pushSoon() { pushDirty = true; pushDirtyMs = Date.now(); }
+function pushSoon() { pushDirty = true; pushDirtyMs = Date.now(); resendsLeft = 0; }
 // immediate: discrete events (anim switch, re-enable) skip the debounce
-function pushNow()  { pushDirty = true; pushDirtyMs = 0; }
+function pushNow()  { pushDirty = true; pushDirtyMs = 0; resendsLeft = 0; }
 
 function on(v) {
   p.on = v | 0;
@@ -189,10 +200,13 @@ function reportBurst() {
   var b = dbgBurst;
   if (!b.on && !b.off && !b.show) return;
   dbgBurst = { on: 0, off: 0, show: 0 };
+  var wasResend = dbgResend;
+  dbgResend = false;
   if (gateWord() === "playing") return;
   var line = "burst: " + b.on + " on + " + b.off + " off + " + b.show + " show"
     + " | gate=" + gateWord() + " hue=" + Math.round(p.hue)
     + " sat=" + Math.round(p.sat) + " bright=" + Math.round(p.brightness);
+  if (wasResend) line += " (resend)";
   if (b.on > 0 && b.show === 0) line += "  << ONS WITHOUT SHOW - frame will never render!";
   dbg(line);
 }
@@ -240,6 +254,17 @@ function tick() {
 
   flushOffs(); // release the previous batch's note-offs (even when gated)
 
+  // insurance resend of the last built frame (runs before the on/active
+  // gate so a possibly-eaten blackout gets re-sent too). frame[] still
+  // holds exactly what was last rendered — resend it undiffed, unchanged.
+  if (resendsLeft > 0 && now >= nextResendAt) {
+    resendsLeft--;
+    nextResendAt = now + RESEND_MS;
+    dbgResend = true;
+    invalidate();
+    sendFrame();
+  }
+
   if (!p.on || !deviceActive) return;
 
   if (p.anim === 0 || !transPlaying) {
@@ -252,7 +277,11 @@ function tick() {
       var settled = now - pushDirtyMs >= PUSH_DEBOUNCE_MS;
       var preview = now - lastPushMs >= PUSH_THROTTLE_MS;
       if (settled || preview) {
-        if (settled) pushDirty = false;
+        if (settled) {
+          pushDirty = false;
+          resendsLeft = RESENDS; // insurance for the final frame only
+          nextResendAt = now + RESEND_MS;
+        }
         lastPushMs = now;
         invalidate(); // full undiffed send so a prior drop can't leave a pixel stale
         renderFrame();
@@ -263,6 +292,7 @@ function tick() {
   }
 
   pushDirty = false; // streaming applies param changes every frame anyway
+  resendsLeft = 0;   // and self-heals via REFRESH_TICKS — no scheduled resends
 
   ticksSinceRefresh++;
   if (ticksSinceRefresh >= REFRESH_TICKS) {
@@ -336,6 +366,8 @@ function blackout() {
   var i;
   for (i = 0; i < NUM_LEDS * 3; i++) frame[i] = 0;
   sendFrame(); // diffed: already-dark channels send nothing
+  resendsLeft = RESENDS; // an eaten blackout would leave the strip lit
+  nextResendAt = Date.now() + RESEND_MS;
 }
 
 function noteOut(note, vel) {

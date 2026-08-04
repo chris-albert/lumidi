@@ -90,15 +90,21 @@ engine broke mid-frame (gate will read `error` with the exception above).
 - The strip only renders when note 127 ("show") arrives — pixel writes just
   stage. The engine ends every batch with note 127, and the simulator logs it
   (`note 127 (show) -> latch frame`) so you can verify latches are arriving.
-- `SEND_NOTEOFFS` in `lumidi-engine.js` sends a velocity-0 note-off for every
-  note-on so notes don't hang in Live's pipeline. Offs are *deferred* to the
-  start of the next batch/tick — never sent in the same instant as their
-  note-on, because Live can drop zero-length notes (which would eat pixel
-  writes and the show latch). The Teensy and the simulator both ignore them.
-  Set it to `false` to A/B test if anything misbehaves.
+- `SEND_NOTEOFFS` in `lumidi-engine.js` is **off**: velocity-0 note-offs were
+  tested as a burst-loss suspect and exonerated (Live eats bursts with offs
+  on or off), so they stay disabled to halve traffic through the lossy
+  pipeline. Nothing downstream needs them — the Teensy has no note-off
+  handler and the simulator ignores velocity 0. Flag kept for A/B tests.
+- **Live's pipeline intermittently eats entire bursts** between the device's
+  `midiout` and the track's MIDI To — proven by the engine logging
+  `57 on + 1 show` while MIDI Monitor on the IAC bus saw zero. The engine
+  compensates with bounded insurance resends (below).
 - **Solid** is event-driven: a color/brightness change sends the complete
-  frame once, then the device goes silent — no idle MIDI stream. The full
-  undiffed send means a previously dropped message can't leave a pixel stale.
+  frame, re-sends it 3 more times (~400ms apart, logged as `(resend)`) as
+  insurance against a burst being eaten, then the device goes silent — no
+  idle MIDI stream. Resends are full undiffed frames ending in the show
+  note, so downstream they're idempotent; new input cancels pending resends.
+  Blackouts (On toggle / device deactivate) get the same insurance.
 - Dial drags on static output are debounced (`PUSH_DEBOUNCE_MS`): intermediate
   values only get a throttled preview frame every `PUSH_THROTTLE_MS`, and the
   final frame goes out once the dial settles — dragging can't back up the

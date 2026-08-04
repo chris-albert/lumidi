@@ -18,16 +18,13 @@ outlets = 3; // 0: "pitch velocity" lists -> [midiformat] -> [midiout]
 var NUM_LEDS = 19;
 var SHOW_NOTE = 127;
 
-// Emit a velocity-0 note-off for every note-on so notes never hang in
-// Live's pipeline. The Teensy has no note-off handler and the simulator
-// ignores velocity 0, so this is invisible downstream. Set false to A/B test.
-//
-// Note-offs are DEFERRED: a batch's offs are flushed at the start of the
-// next batch/tick, never in the same instant as their note-ons. A
-// zero-length on+off pair can be coalesced/dropped by Live's note pipeline,
-// which would eat pixel writes and — worse — the note-127 show latch the
-// firmware needs before it renders anything.
-var SEND_NOTEOFFS = true;
+// Velocity-0 note-off after every note-on (deferred one tick, so Live can't
+// coalesce a zero-length pair). DISABLED: the offs were tested as a burst-loss
+// suspect and exonerated — Live eats whole bursts with offs on or off — so
+// they stay off to halve the traffic through a demonstrably lossy pipeline.
+// The Teensy has no note-off handler and the simulator ignores velocity 0,
+// so nothing downstream ever needed them. Flag kept for A/B testing.
+var SEND_NOTEOFFS = false;
 
 // Animated modes only: re-send the complete frame every N ticks (~2s at
 // 30fps) so a message dropped by Live's note pipeline can't leave a pixel

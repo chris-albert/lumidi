@@ -20,11 +20,17 @@ The `.amxd` must stay in this folder — an unfrozen device finds
 
 1. Drag `LumiDI.amxd` onto a MIDI track in Live.
 2. Set the track's **MIDI To** to the Teensy's MIDI port (hardware) or an IAC bus (simulator).
-3. Controls: **On**, **Animation** (Solid / Pulse / Chase / Rainbow), **Direction**,
+3. Set the track's **MIDI From to "No Input"**. This is not optional: with
+   MIDI From "All Ins" and Monitor In, the track hears the IAC bus it is
+   sending to — the device's own output loops back through the `midiin →
+   midiout` passthrough and Live's feedback protection silently clamps the
+   track's output for seconds at a time (knob changes appear to be randomly
+   ignored downstream while the engine logs perfect bursts).
+4. Controls: **On**, **Animation** (Solid / Pulse / Chase / Rainbow), **Direction**,
    **Hue / Sat / Bright** (color; swatch shows the result), **Rate** (free-run speed),
    **Sync + SyncRate** (lock the animation cycle to Live's transport, e.g. 1 bar).
    All parameters are automatable.
-4. Animations only run while the song is playing — stopped transport freezes the
+5. Animations only run while the song is playing — stopped transport freezes the
    frame (color changes still apply). Sync is on by default, so the animation
    cycle follows Live's tempo and song position; turn Sync off to free-run at
    the Rate dial's speed instead (still gated by the transport).
@@ -68,6 +74,12 @@ stale patcher — re-drag the `.amxd`), tick exceptions are posted once per
 distinct error, and sending the message `status` to the js object dumps
 the complete engine state (params, transport, gate, counters).
 
+If output ever goes missing again, split "device broken" from "Live eating
+notes" by comparing the device's "sent" counter against MIDI Monitor.app on
+the IAC bus (first suspect: the MIDI From feedback loop — Use, step 3).
+The repo history (PR #12) has a per-burst Max-window accounting mode that
+can be restored for deeper digging.
+
 ## Protocol notes
 
 - Never send velocity 0 as a pixel write — it's a MIDI note-off and the firmware
@@ -75,12 +87,16 @@ the complete engine state (params, transport, gate, counters).
 - The strip only renders when note 127 ("show") arrives — pixel writes just
   stage. The engine ends every batch with note 127, and the simulator logs it
   (`note 127 (show) -> latch frame`) so you can verify latches are arriving.
-- `SEND_NOTEOFFS` in `lumidi-engine.js` sends a velocity-0 note-off for every
-  note-on so notes don't hang in Live's pipeline. Offs are *deferred* to the
-  start of the next batch/tick — never sent in the same instant as their
-  note-on, because Live can drop zero-length notes (which would eat pixel
-  writes and the show latch). The Teensy and the simulator both ignore them.
-  Set it to `false` to A/B test if anything misbehaves.
+- `SEND_NOTEOFFS` in `lumidi-engine.js` is **off**: velocity-0 note-offs were
+  tested as a burst-loss suspect and exonerated (Live eats bursts with offs
+  on or off), so they stay disabled to halve traffic through the lossy
+  pipeline. Nothing downstream needs them — the Teensy has no note-off
+  handler and the simulator ignores velocity 0. Flag kept for A/B tests.
+- **A misrouted track can silently eat entire bursts**: with MIDI From set
+  to "All Ins" the track hears its own IAC output, the feedback loop trips
+  Live's protection, and output is clamped for seconds at a time (the
+  device emits perfectly while MIDI Monitor on the bus sees zero). The fix
+  is MIDI From "No Input" (Use, step 3).
 - **Solid** is event-driven: a color/brightness change sends the complete
   frame once, then the device goes silent — no idle MIDI stream. The full
   undiffed send means a previously dropped message can't leave a pixel stale.

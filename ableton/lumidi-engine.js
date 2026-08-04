@@ -77,6 +77,15 @@ var frame = [];           // staged RGB values 0..255, length NUM_LEDS*3
 var lastVel = [];         // last velocity sent per channel, -1 = never sent
 var pendingOffs = [];     // note-offs owed for the previous batch's note-ons
 
+// A (re)compile — device load, or autowatch hot-reload after the file on
+// disk changed (editing, git branch switches) — resets all of the state
+// above to defaults, but Live does NOT re-push the dials' values. Without a
+// resync the engine renders with stale defaults (e.g. a Sat change draws at
+// hue 0 = red, not the Hue dial's color) until every control is touched.
+// On the first tick after a compile we ask the patch (outlet 2 "resync")
+// to send `outputvalue` to every control so they re-push what they hold.
+var needsResync = true;
+
 // --- debug state (reported on outlet 2 about once a second) ---
 var DBG_STATUS_TICKS = 30;
 var dbgAlive = 0;         // total metro bangs — a frozen counter means metro/js is dead
@@ -144,6 +153,11 @@ function playing(s) {
 // --- main loop, driven by [metro 33] (arrives as a bang) ---
 function bang() {
   dbgAlive++;
+  if (needsResync) {
+    needsResync = false;
+    outlet(2, "resync"); // synchronously triggers every control to re-push
+    dbg("lumidi-engine: fresh compile — requested parameter resync");
+  }
   try {
     tick();
     lastError = "";

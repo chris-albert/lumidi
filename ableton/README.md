@@ -26,7 +26,8 @@ The `.amxd` must stay in this folder — an unfrozen device finds
    midiout` passthrough and Live's feedback protection silently clamps the
    track's output for seconds at a time (knob changes appear to be randomly
    ignored downstream while the engine logs perfect bursts).
-4. Controls: **On**, **Animation** (Solid / Pulse / Chase / Rainbow), **Direction**,
+4. Controls: **On**, **Animation** (Solid / Pulse / Chase / Rainbow / Strobe —
+   Strobe is the hard pulse: full on for the first half of each cycle, no fade), **Direction**,
    **Hue / Sat / Bright** (color; swatch shows the result), **Rate** (free-run speed),
    **Sync + SyncRate** (lock the animation cycle to Live's transport, e.g. 1 bar).
    All parameters are automatable.
@@ -87,11 +88,15 @@ can be restored for deeper digging.
 - The strip only renders when note 127 ("show") arrives — pixel writes just
   stage. The engine ends every batch with note 127, and the simulator logs it
   (`note 127 (show) -> latch frame`) so you can verify latches are arriving.
-- `SEND_NOTEOFFS` in `lumidi-engine.js` is **off**: velocity-0 note-offs were
-  tested as a burst-loss suspect and exonerated (Live eats bursts with offs
-  on or off), so they stay disabled to halve traffic through the lossy
-  pipeline. Nothing downstream needs them — the Teensy has no note-off
-  handler and the simulator ignores velocity 0. Flag kept for A/B tests.
+- `SEND_NOTEOFFS` in `lumidi-engine.js` sends a velocity-0 note-off for every
+  note-on, *deferred* to the next tick — never in the same instant as its
+  note-on, because Live can drop zero-length notes (which would eat pixel
+  writes or the show latch). The offs are **required for animated modes**:
+  Live bookkeeps open notes on its MIDI outputs, and streaming 57 pitches
+  ~30x/sec with no offs grew that set until the routing choked — animations
+  froze after a bar or two when this flag was briefly off. Downstream never
+  sees a difference (the Teensy has no note-off handler; the simulator
+  ignores velocity 0).
 - **A misrouted track can silently eat entire bursts**: with MIDI From set
   to "All Ins" the track hears its own IAC output, the feedback loop trips
   Live's protection, and output is clamped for seconds at a time (the

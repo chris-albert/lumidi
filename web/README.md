@@ -35,8 +35,11 @@ order:
    **"no MIDI input!"** and the log for a timestamped
    `midi input "...": disconnected` line (ports drop silently on sleep/wake or
    IAC changes). To split the bus in half, open MIDI Monitor.app on the IAC
-   bus: notes visible there = Chrome-side problem; not visible = Live-side
-   (wrong MIDI To, IAC bus disabled).
+   bus: notes visible there = Chrome-side problem; not visible = Live-side.
+   The #1 Live-side cause (found the hard way): the track's **MIDI From must
+   be "No Input"** — on "All Ins" the track hears its own IAC output, the
+   feedback loop trips Live's protection, and output is silently clamped
+   for seconds at a time. Also check: wrong MIDI To, IAC bus disabled.
 3. **`msg/s` counts but `staged` sticks** and the stats line turns red
    ("no show!") → pixel writes arrived but the note-127 show didn't. Press
    **Show** to latch manually and see what was staged.

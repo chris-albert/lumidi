@@ -20,11 +20,17 @@ The `.amxd` must stay in this folder — an unfrozen device finds
 
 1. Drag `LumiDI.amxd` onto a MIDI track in Live.
 2. Set the track's **MIDI To** to the Teensy's MIDI port (hardware) or an IAC bus (simulator).
-3. Controls: **On**, **Animation** (Solid / Pulse / Chase / Rainbow), **Direction**,
+3. Set the track's **MIDI From to "No Input"**. This is not optional: with
+   MIDI From "All Ins" and Monitor In, the track hears the IAC bus it is
+   sending to — the device's own output loops back through the `midiin →
+   midiout` passthrough and Live's feedback protection silently clamps the
+   track's output for seconds at a time (knob changes appear to be randomly
+   ignored downstream while the engine logs perfect bursts).
+4. Controls: **On**, **Animation** (Solid / Pulse / Chase / Rainbow), **Direction**,
    **Hue / Sat / Bright** (color; swatch shows the result), **Rate** (free-run speed),
    **Sync + SyncRate** (lock the animation cycle to Live's transport, e.g. 1 bar).
    All parameters are automatable.
-4. Animations only run while the song is playing — stopped transport freezes the
+5. Animations only run while the song is playing — stopped transport freezes the
    frame (color changes still apply). Sync is on by default, so the animation
    cycle follows Live's tempo and song position; turn Sync off to free-run at
    the Rate dial's speed instead (still gated by the transport).
@@ -73,15 +79,18 @@ stopped-transport output; streaming animation is not posted):
 
 ```
 burst: 57 on + 0 off + 1 show | gate=solid hue=240 sat=100 bright=80
-burst: 0 on + 58 off + 0 show | gate=solid hue=240 sat=100 bright=80
+burst: 57 on + 0 off + 1 show | gate=solid hue=240 sat=100 bright=80 (resend)
 ```
 
-A knob turn must post exactly that shape: the full frame (57 ons + 1 show),
-then its deferred note-offs alone one tick later. Use it to split "the
-device is broken" from "Live is eating the notes": if the burst line says
-57/1 but MIDI Monitor.app on the IAC bus saw fewer, the loss is downstream
-of the device; if the line itself is short or says `ONS WITHOUT SHOW`, the
-engine broke mid-frame (gate will read `error` with the exception above).
+A knob turn must post exactly that shape: the settled frame (57 ons +
+1 show) followed by its insurance resends (`(resend)`, ~400ms apart). With
+`SEND_NOTEOFFS` enabled the deferred offs also post alone one tick after
+each batch (`0 on + 58 off + 0 show`). Use the lines to split "the device
+is broken" from "Live is eating the notes": if the burst line says 57/1
+but MIDI Monitor.app on the IAC bus saw fewer, the loss is downstream of
+the device (first suspect: the MIDI From feedback loop — Use, step 3); if
+the line itself is short or says `ONS WITHOUT SHOW`, the engine broke
+mid-frame (gate will read `error` with the exception above).
 
 ## Protocol notes
 
@@ -95,10 +104,12 @@ engine broke mid-frame (gate will read `error` with the exception above).
   on or off), so they stay disabled to halve traffic through the lossy
   pipeline. Nothing downstream needs them — the Teensy has no note-off
   handler and the simulator ignores velocity 0. Flag kept for A/B tests.
-- **Live's pipeline intermittently eats entire bursts** between the device's
-  `midiout` and the track's MIDI To — proven by the engine logging
-  `57 on + 1 show` while MIDI Monitor on the IAC bus saw zero. The engine
-  compensates with bounded insurance resends (below).
+- **A misrouted track can silently eat entire bursts**: with MIDI From set
+  to "All Ins" the track hears its own IAC output, the feedback loop trips
+  Live's protection, and output is clamped for seconds at a time (the engine
+  logs `57 on + 1 show` while MIDI Monitor on the bus sees zero). The fix is
+  MIDI From "No Input" (Use, step 3); the engine's bounded insurance resends
+  (below) are kept anyway as cheap protection against any transient drop.
 - **Solid** is event-driven: a color/brightness change sends the complete
   frame, re-sends it 3 more times (~400ms apart, logged as `(resend)`) as
   insurance against a burst being eaten, then the device goes silent — no

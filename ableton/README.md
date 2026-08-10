@@ -26,11 +26,15 @@ The `.amxd` must stay in this folder — an unfrozen device finds
    midiout` passthrough and Live's feedback protection silently clamps the
    track's output for seconds at a time (knob changes appear to be randomly
    ignored downstream while the engine logs perfect bursts).
-4. Controls: **On**, **Animation** (Solid / Pulse / Chase / Rainbow / Strobe —
-   Strobe is the hard pulse: full on for the first half of each cycle, no fade), **Direction**,
-   **Hue / Sat / Bright** (color; swatch shows the result), **Rate** (free-run speed),
+4. Controls: **On**, **Animation** (Solid / Pulse / Chase / Rainbow / Strobe /
+   Scanner / Breathe / Wipe / Theater / Burst / Hue Drift / Sparkle / Fire /
+   Flip / Wave), **Direction** (reverses chase, rainbow, scanner, wipe,
+   theater, hue drift, wave; swaps flip's starting side), **Hue / Sat /
+   Bright** (color; swatch shows the result), **Rate** (free-run speed),
    **Sync + SyncRate** (lock the animation cycle to Live's transport, e.g. 1 bar).
-   All parameters are automatable.
+   All parameters are automatable. Sparkle and Fire use deterministic noise
+   hashed from the transport position, so a beat-synced loop replays the
+   same twinkles every pass.
 5. Animations only run while the song is playing — stopped transport freezes the
    frame (color changes still apply). Sync is on by default, so the animation
    cycle follows Live's tempo and song position; turn Sync off to free-run at

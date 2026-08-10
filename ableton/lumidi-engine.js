@@ -11,9 +11,10 @@
 
 autowatch = 1;
 inlets = 1;
-outlets = 3; // 0: "pitch velocity" lists -> [midiformat] -> [midiout]
+outlets = 4; // 0: "pitch velocity" lists -> [midiformat] -> [midiout]
              // 1: "r g b" floats (0..1) -> [swatch] display
              // 2: debug status ("alive n" / "sent n" / "gate word"), ~1/sec
+             // 3: staged frame (NUM_LEDS*3 values 0..255) -> [jsui] LED preview
 
 var NUM_LEDS = 19;
 var SHOW_NOTE = 127;
@@ -365,7 +366,10 @@ function sendFrame() {
       changed = true;
     }
   }
-  if (changed) noteOut(SHOW_NOTE, 64);
+  if (changed) {
+    noteOut(SHOW_NOTE, 64);
+    outlet(3, frame); // mirror what was emitted to the on-device LED preview
+  }
 }
 
 function blackout() {

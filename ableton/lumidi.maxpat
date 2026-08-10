@@ -188,7 +188,7 @@
 			{
 				"box": {
 					"id": "obj-10",
-					"maxclass": "live.tab",
+					"maxclass": "live.menu",
 					"numinlets": 1,
 					"numoutlets": 3,
 					"outlettype": [
@@ -217,14 +217,24 @@
 								"Pulse",
 								"Chase",
 								"Rainbow",
-								"Strobe"
+								"Strobe",
+								"Scanner",
+								"Breathe",
+								"Wipe",
+								"Theater",
+								"Burst",
+								"Hue Drift",
+								"Sparkle",
+								"Fire",
+								"Flip",
+								"Wave"
 							],
 							"parameter_initial": [
 								0
 							],
 							"parameter_initial_enable": 1,
 							"parameter_longname": "Animation",
-							"parameter_mmax": 4,
+							"parameter_mmax": 14,
 							"parameter_shortname": "Anim",
 							"parameter_type": 2
 						}

@@ -164,7 +164,13 @@
       display: block;
       border-radius: 8px;
     }
-    figure.device img { border: 1px solid var(--border); }
+    .shots {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0 16px;
+    }
+    .shots figure { margin: 0 0 16px; }
+    @media (max-width: 560px) { .shots { grid-template-columns: 1fr; } }
     figure.circuit {
       background: #fdfdfd;
       border: 1px solid var(--border);
@@ -315,9 +321,19 @@
       parameter is automatable.
     </p>
     <figure class="device">
-      <img src="ableton-device.svg" alt="The LumiDI device in Ableton Live: On toggle, Animation menu, direction tabs, Hue/Sat/Bright/Rate dials, Sync toggle with sync-rate menu, color swatch, and a virtual LED strip preview.">
-      <figcaption>The LumiDI device — animation menu, HSV color, rate and beat-sync, live color swatch, LED preview.</figcaption>
+      <img src="device-rainbow.png" alt="The LumiDI device in Ableton Live running the Rainbow animation: On toggle, animation menu, Fwd/Rev tabs, Hue/Sat/Bright/Rate dials, Sync toggle with sync-rate menu, a color picker, and a strip preview glowing in rainbow colors.">
+      <figcaption>Rainbow — the strip preview along the bottom mirrors exactly what's streamed to the LEDs.</figcaption>
     </figure>
+    <div class="shots">
+      <figure>
+        <img src="device-wave.png" alt="The LumiDI device running the Wave animation, its strip preview showing red waves.">
+        <figcaption>Wave</figcaption>
+      </figure>
+      <figure>
+        <img src="device-chase.png" alt="The LumiDI device running the Chase animation, its strip preview showing a blue chase.">
+        <figcaption>Chase</figcaption>
+      </figure>
+    </div>
     <h3>Using it</h3>
     <ol>
       <li><a href="LumiDI.amxd" download>Download <code>LumiDI.amxd</code></a> (or build it from source with <code>python3 ableton/build_amxd.py</code>).</li>

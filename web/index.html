@@ -217,6 +217,134 @@
     }
     .proto .k { color: #ffb300; white-space: nowrap; }
 
+    /* virtual device */
+    .vd-transport { display: flex; align-items: center; gap: 14px; margin: 20px 0 10px; }
+    #vd-play {
+      background: #0b0d10;
+      border: 1px solid #30363d;
+      color: var(--text);
+      border-radius: 6px;
+      padding: 6px 16px;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      min-width: 92px;
+    }
+    #vd-play.on { border-color: var(--accent); color: var(--accent); }
+    .vd-bpm { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; }
+    .vd-bpm input {
+      width: 62px;
+      background: #0b0d10;
+      border: 1px solid #30363d;
+      color: var(--text);
+      border-radius: 6px;
+      padding: 4px 8px;
+      font: inherit;
+    }
+    .vd-gate { margin-left: auto; color: var(--muted); font: 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .vd {
+      background: #3b3b3b;
+      border: 1px solid #191919;
+      border-radius: 8px;
+      overflow: hidden;
+      color: #e3e3e3;
+      font-size: 13px;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .vd-titlebar {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 6px 12px;
+      background: #464646;
+      font-weight: 700;
+      font-size: 14px;
+    }
+    .vd-activator { width: 13px; height: 13px; border-radius: 50%; background: #ffaa1e; }
+    .vd-body { display: flex; flex-wrap: wrap; gap: 14px 18px; padding: 14px 16px 8px; }
+    .vd-controls { flex: 1 1 380px; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+    .vd-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .vd-logo { width: 30px; height: 30px; flex: none; }
+    .vd-toggle {
+      width: 17px;
+      height: 17px;
+      border-radius: 3px;
+      border: 1px solid #222;
+      background: #1e1e1e;
+      cursor: pointer;
+      padding: 0;
+      flex: none;
+    }
+    .vd-toggle.on { background: #ffaa1e; }
+    .vd-lbl { color: #a3a3a3; }
+    .vd-menu {
+      background: #1e1e1e;
+      color: #e3e3e3;
+      border: 1px solid #666;
+      border-radius: 3px;
+      padding: 3px 6px;
+      font-size: 12px;
+      font-family: inherit;
+    }
+    .vd-tabs { display: flex; }
+    .vd-tabs button {
+      font-size: 12px;
+      font-family: inherit;
+      padding: 3px 12px;
+      border: 1px solid #666;
+      background: #1e1e1e;
+      color: #a3a3a3;
+      cursor: pointer;
+    }
+    .vd-tabs button.active { background: #ffaa1e; border-color: #ffaa1e; color: #1b1b1b; font-weight: 600; }
+    .vd-dials { display: flex; gap: 6px; }
+    .vd-dial {
+      width: 54px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      cursor: ns-resize;
+      touch-action: none;
+    }
+    .vd-dial svg { width: 44px; height: 44px; display: block; }
+    .vd-dial-label { font-size: 12px; color: #d6d6d6; }
+    .vd-dial-value { font-size: 12px; color: #b5b5b5; font-variant-numeric: tabular-nums; }
+    .vd-picker {
+      flex: 0 0 150px;
+      min-height: 110px;
+      position: relative;
+      border: 1px solid #222;
+      border-radius: 4px;
+      cursor: crosshair;
+      touch-action: none;
+      background:
+        linear-gradient(to bottom, rgba(255, 255, 255, 0), #fff),
+        linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+    }
+    .vd-marker {
+      position: absolute;
+      width: 13px;
+      height: 13px;
+      border-radius: 50%;
+      border: 2px solid #fff;
+      box-shadow: 0 0 0 1.5px #000;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
+    .vd-strip {
+      display: flex;
+      gap: 7px;
+      justify-content: space-between;
+      background: #161616;
+      border: 1px solid #222;
+      border-radius: 5px;
+      margin: 6px 16px 16px;
+      padding: 9px 10px;
+    }
+    .vd-led { flex: 1 1 0; max-width: 26px; aspect-ratio: 1; border-radius: 50%; background: #000; }
+    .vd-note { color: #ff7b72; font-size: 13px; }
+
     footer {
       border-top: 1px solid var(--border);
       padding: 32px 24px 48px;
@@ -322,6 +450,83 @@
       locks the animation cycle to Live's transport (e.g. exactly one bar). Every
       parameter is automatable.
     </p>
+    <h3>Try it — right here</h3>
+    <p>
+      Not a mock-up: this is the same <code>lumidi-engine.js</code> the device runs in
+      Live, loaded straight into the page and driving a virtual 19-pixel strip through
+      the real MIDI protocol. And just like in Live, animations only move while the
+      transport plays — hit <strong>Stop</strong> and the frame freezes.
+    </p>
+    <div id="virtual-device">
+      <div class="vd-transport">
+        <button id="vd-play" type="button"></button>
+        <label class="vd-bpm">BPM
+          <input id="vd-bpm" type="number" min="40" max="240" value="120">
+        </label>
+        <span class="vd-gate" id="vd-gate"></span>
+      </div>
+      <div class="vd">
+        <div class="vd-titlebar"><span class="vd-activator"></span>LumiDI</div>
+        <div class="vd-body">
+          <div class="vd-controls">
+            <div class="vd-row">
+              <svg class="vd-logo" viewBox="0 0 64 64" aria-hidden="true">
+                <circle cx="32" cy="32" r="28" fill="#1b2027" stroke="#454f5b" stroke-width="3"/>
+                <rect x="29" y="51" width="6" height="7" rx="2" fill="#454f5b"/>
+                <circle cx="17" cy="35" r="4.5" fill="#ff3b30"/>
+                <circle cx="21.4" cy="24.4" r="4.5" fill="#ffb300"/>
+                <circle cx="32" cy="20" r="4.5" fill="#34d158"/>
+                <circle cx="42.6" cy="24.4" r="4.5" fill="#2fb6ff"/>
+                <circle cx="47" cy="35" r="4.5" fill="#b45bff"/>
+              </svg>
+              <button class="vd-toggle on" id="vd-on" type="button" aria-pressed="true" aria-label="On"></button>
+              <span class="vd-lbl">On</span>
+              <select id="vd-anim" class="vd-menu" aria-label="Animation">
+                <option value="0">Solid</option>
+                <option value="1">Pulse</option>
+                <option value="2">Chase</option>
+                <option value="3" selected>Rainbow</option>
+                <option value="4">Strobe</option>
+                <option value="5">Scanner</option>
+                <option value="6">Breathe</option>
+                <option value="7">Wipe</option>
+                <option value="8">Theater</option>
+                <option value="9">Burst</option>
+                <option value="10">Hue Drift</option>
+                <option value="11">Sparkle</option>
+                <option value="12">Fire</option>
+                <option value="13">Flip</option>
+                <option value="14">Wave</option>
+              </select>
+              <div class="vd-tabs" role="group" aria-label="Direction">
+                <button id="vd-fwd" class="active" type="button">Fwd</button>
+                <button id="vd-rev" type="button">Rev</button>
+              </div>
+            </div>
+            <div class="vd-row">
+              <div class="vd-dials" id="vd-dials"></div>
+              <button class="vd-toggle on" id="vd-sync" type="button" aria-pressed="true" aria-label="Sync"></button>
+              <span class="vd-lbl">Sync</span>
+              <select id="vd-syncrate" class="vd-menu" aria-label="Sync rate">
+                <option value="0">8 bars</option>
+                <option value="1">4 bars</option>
+                <option value="2">2 bars</option>
+                <option value="3" selected>1 bar</option>
+                <option value="4">1/2</option>
+                <option value="5">1/4</option>
+                <option value="6">1/8</option>
+                <option value="7">1/16</option>
+              </select>
+            </div>
+          </div>
+          <div class="vd-picker" id="vd-picker"><div class="vd-marker" id="vd-marker"></div></div>
+        </div>
+        <div class="vd-strip" id="vd-strip" aria-label="Virtual LED strip"></div>
+      </div>
+      <p class="vd-note" id="vd-note" hidden></p>
+    </div>
+
+    <h3>The real thing in Live</h3>
     <figure class="device">
       <img src="device-rainbow.png" alt="The LumiDI device in Ableton Live running the Rainbow animation: On toggle, animation menu, Fwd/Rev tabs, Hue/Sat/Bright/Rate dials, Sync toggle with sync-rate menu, a color picker, and a strip preview glowing in rainbow colors.">
       <figcaption>Rainbow — the strip preview along the bottom mirrors exactly what's streamed to the LEDs.</figcaption>
@@ -451,5 +656,6 @@ pio run -t upload</code></pre>
     <a href="https://github.com/chris-albert/lumidi">GitHub</a>.
     Built around a Teensy 4.0, a strip of WS2812Bs, and an unreasonable love of MIDI.
   </footer>
+  <script src="virtual-device.js" defer></script>
 </body>
 </html>

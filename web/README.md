@@ -2,15 +2,21 @@
 
 - **`index.html`** — the landing page: what LumiDI is, how to use the device,
   parts + circuit to build one, and a download link for `LumiDI.amxd`.
+- **`virtual-device.js`** — the landing page's interactive device: it runs the
+  real `ableton/lumidi-engine.js` in the page (Max shim: stubbed `outlet()`, a
+  33ms loop for the metro/transport) and decodes its MIDI onto a virtual strip.
+  It depends on the engine's message-handler names — if one is renamed there,
+  update `HANDLERS`.
 - **`simulator/`** — a browser page that renders the LED strip from the same MIDI
   stream the Teensy consumes, so you can test the Max for Live device (or any raw
   MIDI) without hardware.
 
-The landing page references two files that are copied in at deploy time (see
+The landing page references files that are copied in at deploy time (see
 `.github/workflows/deploy-pages.yml`) and git-ignored here:
 
 ```sh
 python3 ableton/build_amxd.py && cp ableton/LumiDI.amxd web/
+cp ableton/lumidi-engine.js web/
 cp hardware/teensy/circuit.svg web/
 ```
 

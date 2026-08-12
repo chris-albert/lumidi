@@ -198,6 +198,8 @@
     }
     th { color: var(--muted); font-weight: 600; }
     td:first-child { font-weight: 600; }
+    th.price, td.price { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    tr.total td { border-bottom: none; font-weight: 700; }
 
     ol li, ul li { margin: 8px 0; }
 
@@ -357,32 +359,47 @@
 
     <h3>Parts</h3>
     <table>
-      <tr><th>Part</th><th>Notes</th></tr>
+      <tr><th>Part</th><th>Notes</th><th class="price">Price</th></tr>
       <tr>
-        <td>Teensy 4.0</td>
+        <td><a href="https://www.sparkfun.com/teensy-4-0.html">Teensy 4.0</a></td>
         <td>The USB-MIDI brain. Appears to your computer as a class-compliant MIDI device.</td>
+        <td class="price">$23.80</td>
       </tr>
       <tr>
-        <td>WS2812B LED strip, 5&nbsp;V</td>
-        <td>e.g. AL-WS2812B-150BK-WP (30 px/m, 5050 RGB). The firmware defaults to 19 pixels; the MIDI protocol addresses up to 42.</td>
+        <td><a href="https://www.adafruit.com/product/1376">WS2812B LED strip, 5&nbsp;V</a></td>
+        <td>1&nbsp;m at 30 px/m (5050 RGB, aka NeoPixel). The firmware defaults to 19 pixels; the MIDI protocol addresses up to 42.</td>
+        <td class="price">$9.95</td>
       </tr>
       <tr>
-        <td>330&nbsp;Ω resistor</td>
-        <td>In series on the data line, between the Teensy and the strip's DIN.</td>
+        <td><a href="https://www.sparkfun.com/resistor-330-ohm-1-4-watt-pth-20-pack-thick-leads.html">330&nbsp;Ω resistor</a></td>
+        <td>In series on the data line, between the Teensy and the strip's DIN. You need one; they come in a 20-pack.</td>
+        <td class="price">$1.25</td>
       </tr>
       <tr>
-        <td>100–1000&nbsp;µF capacitor</td>
-        <td>6.3&nbsp;V or higher, across the strip's +5V and GND, close to the strip.</td>
+        <td><a href="https://www.adafruit.com/product/1589">100–1000&nbsp;µF capacitor</a></td>
+        <td>6.3&nbsp;V or higher, across the strip's +5V and GND, close to the strip. Bigger is fine — the linked one is 4700&nbsp;µF.</td>
+        <td class="price">$1.95</td>
       </tr>
       <tr>
-        <td>5&nbsp;V power supply</td>
-        <td>Budget 60&nbsp;mA per pixel: 19 px ≈ 1.14&nbsp;A at full white, so ≥ 1.5&nbsp;A. Power the strip from the PSU, not the Teensy.</td>
+        <td><a href="https://www.adafruit.com/product/276">5&nbsp;V power supply</a></td>
+        <td>Budget 60&nbsp;mA per pixel: 19 px ≈ 1.14&nbsp;A at full white, so the linked 2&nbsp;A supply has headroom. Power the strip from the PSU, not the Teensy.</td>
+        <td class="price">$7.95</td>
       </tr>
       <tr>
-        <td>Micro-USB cable</td>
-        <td>Powers the Teensy and carries the MIDI.</td>
+        <td><a href="https://www.adafruit.com/product/592">Micro-USB cable</a></td>
+        <td>Powers the Teensy and carries the MIDI. You probably have one already.</td>
+        <td class="price">$2.95</td>
+      </tr>
+      <tr class="total">
+        <td>Estimated total</td>
+        <td></td>
+        <td class="price">≈ $48</td>
       </tr>
     </table>
+    <p class="lead" style="font-size:14px">
+      Prices as of August 2026, before shipping — and the links are just known-good
+      examples; any equivalent part works.
+    </p>
 
     <h3>Circuit</h3>
     <figure class="circuit">

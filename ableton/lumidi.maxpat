@@ -958,13 +958,6 @@
 						430.0,
 						60.0,
 						22.0
-					],
-					"presentation": 1,
-					"presentation_rect": [
-						408.0,
-						24.0,
-						62.0,
-						15.0
 					]
 				}
 			},
@@ -983,13 +976,6 @@
 						430.0,
 						60.0,
 						22.0
-					],
-					"presentation": 1,
-					"presentation_rect": [
-						408.0,
-						43.0,
-						62.0,
-						15.0
 					]
 				}
 			},
@@ -1026,13 +1012,6 @@
 						100.0,
 						22.0
 					],
-					"presentation": 1,
-					"presentation_rect": [
-						408.0,
-						62.0,
-						88.0,
-						16.0
-					],
 					"text": "starting"
 				}
 			},
@@ -1047,13 +1026,6 @@
 						470.0,
 						60.0,
 						18.0
-					],
-					"presentation": 1,
-					"presentation_rect": [
-						408.0,
-						5.0,
-						62.0,
-						15.0
 					],
 					"text": "debug"
 				}
@@ -1099,6 +1071,164 @@
 						396.0,
 						26.0
 					]
+				}
+			},
+			{
+				"box": {
+					"id": "obj-48",
+					"maxclass": "live.numbox",
+					"numinlets": 1,
+					"numoutlets": 2,
+					"outlettype": [
+						"",
+						"float"
+					],
+					"parameter_enable": 1,
+					"patching_rect": [
+						1250.0,
+						30.0,
+						50.0,
+						22.0
+					],
+					"presentation": 1,
+					"presentation_rect": [
+						252.0,
+						28.0,
+						32.0,
+						15.0
+					],
+					"saved_attribute_attributes": {
+						"valueof": {
+							"parameter_initial": [
+								1
+							],
+							"parameter_initial_enable": 1,
+							"parameter_longname": "Strip Number",
+							"parameter_mmax": 16,
+							"parameter_mmin": 1,
+							"parameter_shortname": "Strip",
+							"parameter_type": 1
+						}
+					}
+				}
+			},
+			{
+				"box": {
+					"id": "obj-49",
+					"maxclass": "newobj",
+					"numinlets": 1,
+					"numoutlets": 1,
+					"outlettype": [
+						""
+					],
+					"patching_rect": [
+						1250.0,
+						100.0,
+						90.0,
+						22.0
+					],
+					"text": "prepend strip"
+				}
+			},
+			{
+				"box": {
+					"id": "obj-50",
+					"maxclass": "live.numbox",
+					"numinlets": 1,
+					"numoutlets": 2,
+					"outlettype": [
+						"",
+						"float"
+					],
+					"parameter_enable": 1,
+					"patching_rect": [
+						1340.0,
+						30.0,
+						50.0,
+						22.0
+					],
+					"presentation": 1,
+					"presentation_rect": [
+						306.0,
+						28.0,
+						32.0,
+						15.0
+					],
+					"saved_attribute_attributes": {
+						"valueof": {
+							"parameter_initial": [
+								1
+							],
+							"parameter_initial_enable": 1,
+							"parameter_longname": "Strip Count",
+							"parameter_mmax": 16,
+							"parameter_mmin": 1,
+							"parameter_shortname": "Of",
+							"parameter_type": 1
+						}
+					}
+				}
+			},
+			{
+				"box": {
+					"id": "obj-51",
+					"maxclass": "newobj",
+					"numinlets": 1,
+					"numoutlets": 1,
+					"outlettype": [
+						""
+					],
+					"patching_rect": [
+						1340.0,
+						100.0,
+						90.0,
+						22.0
+					],
+					"text": "prepend strips"
+				}
+			},
+			{
+				"box": {
+					"id": "obj-52",
+					"maxclass": "comment",
+					"numinlets": 1,
+					"numoutlets": 0,
+					"patching_rect": [
+						1250.0,
+						140.0,
+						60.0,
+						18.0
+					],
+					"presentation": 1,
+					"presentation_rect": [
+						216.0,
+						29.0,
+						34.0,
+						15.0
+					],
+					"text": "strip"
+				}
+			},
+			{
+				"box": {
+					"id": "obj-53",
+					"maxclass": "comment",
+					"numinlets": 1,
+					"numoutlets": 0,
+					"patching_rect": [
+						1340.0,
+						140.0,
+						60.0,
+						18.0
+					],
+					"presentation": 1,
+					"presentation_rect": [
+						288.0,
+						29.0,
+						16.0,
+						15.0
+					],
+					"text": "of"
 				}
 			}
 		],
@@ -1710,6 +1840,78 @@
 					],
 					"source": [
 						"obj-46",
+						0
+					]
+				}
+			},
+			{
+				"patchline": {
+					"source": [
+						"obj-48",
+						0
+					],
+					"destination": [
+						"obj-49",
+						0
+					]
+				}
+			},
+			{
+				"patchline": {
+					"source": [
+						"obj-49",
+						0
+					],
+					"destination": [
+						"obj-30",
+						0
+					]
+				}
+			},
+			{
+				"patchline": {
+					"source": [
+						"obj-50",
+						0
+					],
+					"destination": [
+						"obj-51",
+						0
+					]
+				}
+			},
+			{
+				"patchline": {
+					"source": [
+						"obj-51",
+						0
+					],
+					"destination": [
+						"obj-30",
+						0
+					]
+				}
+			},
+			{
+				"patchline": {
+					"source": [
+						"obj-46",
+						0
+					],
+					"destination": [
+						"obj-48",
+						0
+					]
+				}
+			},
+			{
+				"patchline": {
+					"source": [
+						"obj-46",
+						0
+					],
+					"destination": [
+						"obj-50",
 						0
 					]
 				}

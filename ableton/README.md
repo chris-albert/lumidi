@@ -63,11 +63,12 @@ next to itself.
 
 ## Debugging
 
-The device shows a live debug readout on its right edge:
+The debug readout lives in the patcher (not the device UI — open the device
+in Max via its edit button to watch it):
 
-- **top number ("alive")** — total engine ticks; it should climb continuously.
+- **"alive" number** — total engine ticks; it should climb continuously.
   Frozen = the metro or the js object is dead (check the Max window).
-- **bottom number ("sent")** — MIDI messages emitted in the last second.
+- **"sent" number** — MIDI messages emitted in the last second.
   Solid color sitting idle = 0; changing a color = a brief burst; a playing
   animation ≈ 3500.
 - **gate word** — what the engine is doing / what's blocking output:

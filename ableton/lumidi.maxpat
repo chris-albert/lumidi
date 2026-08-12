@@ -958,13 +958,6 @@
 						430.0,
 						60.0,
 						22.0
-					],
-					"presentation": 1,
-					"presentation_rect": [
-						408.0,
-						24.0,
-						62.0,
-						15.0
 					]
 				}
 			},
@@ -983,13 +976,6 @@
 						430.0,
 						60.0,
 						22.0
-					],
-					"presentation": 1,
-					"presentation_rect": [
-						408.0,
-						43.0,
-						62.0,
-						15.0
 					]
 				}
 			},
@@ -1026,13 +1012,6 @@
 						100.0,
 						22.0
 					],
-					"presentation": 1,
-					"presentation_rect": [
-						408.0,
-						62.0,
-						88.0,
-						16.0
-					],
 					"text": "starting"
 				}
 			},
@@ -1047,13 +1026,6 @@
 						470.0,
 						60.0,
 						18.0
-					],
-					"presentation": 1,
-					"presentation_rect": [
-						408.0,
-						5.0,
-						62.0,
-						15.0
 					],
 					"text": "debug"
 				}

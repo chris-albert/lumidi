@@ -4,11 +4,15 @@
 
 #include "usb_names.h"
 
-// Edit these lines to create your own name.  The length must
-// match the number of characters in your custom name.
+// Default name, used until a custom name has been stored in EEPROM.
+// startup_middle_hook() in main.cpp overwrites this descriptor from
+// EEPROM before USB enumeration, so the array is padded out to
+// MAX_DEVICE_NAME_LEN (31) characters to reserve room for longer names.
 
-#define MIDI_NAME   {'M','I','D','I',' ','L','E','D',' ','2',}
-#define MIDI_NAME_LEN  10
+#define MIDI_NAME   {'l','u','M','I','D','I', \
+                     0,0,0,0,0,0,0,0,0,0,0,0,0, \
+                     0,0,0,0,0,0,0,0,0,0,0,0}
+#define MIDI_NAME_LEN  6
 
 // Do not change this part.  This exact format is required by USB.
 

@@ -1,5 +1,7 @@
 #include <Arduino.h>
 #include <FastLED.h>
+#include <avr/eeprom.h>
+#include "usb_names.h"
 
 #define LED_PIN     7
 #define NUM_LEDS    19
@@ -11,6 +13,56 @@ CRGB leds[NUM_LEDS];
 #define RED_MOD   0
 #define GREEN_MOD 1
 #define BLUE_MOD  2
+
+/**
+ * Device naming: the USB product name defaults to "luMIDI" (see name.c),
+ * but each device can be renamed so multiple units are distinguishable on
+ * one computer.  A custom name is stored in EEPROM as
+ * [magic][length][chars...] and copied into the USB string descriptor by
+ * startup_middle_hook(), which the Teensy core runs before usb_init().
+ *
+ * To rename, send SysEx: F0 7D 4E <ascii name> F7
+ * The name is saved to EEPROM and the device reboots, re-enumerating
+ * with the new name.
+ */
+#define NAME_EEPROM_ADDR     0
+#define NAME_EEPROM_MAGIC    0xA5
+#define MAX_DEVICE_NAME_LEN  31
+
+#define SYSEX_MFG_ID    0x7D  // reserved for non-commercial use
+#define SYSEX_SET_NAME  0x4E  // 'N'
+
+extern "C" void startup_middle_hook(void) {
+  if (eeprom_read_byte((const uint8_t *)NAME_EEPROM_ADDR) != NAME_EEPROM_MAGIC) return;
+  uint8_t len = eeprom_read_byte((const uint8_t *)(NAME_EEPROM_ADDR + 1));
+  if (len == 0 || len > MAX_DEVICE_NAME_LEN) return;
+  for (uint8_t i = 0; i < len; i++) {
+    usb_string_product_name.wString[i] =
+        eeprom_read_byte((const uint8_t *)(NAME_EEPROM_ADDR + 2 + i));
+  }
+  usb_string_product_name.bLength = 2 + len * 2;
+}
+
+#ifdef USB_MIDI
+void sysEx(uint8_t *data, unsigned int length) {
+  if (length < 5 || data[0] != 0xF0 || data[1] != SYSEX_MFG_ID ||
+      data[2] != SYSEX_SET_NAME || data[length - 1] != 0xF7) {
+    return;
+  }
+  unsigned int len = length - 4;
+  if (len > MAX_DEVICE_NAME_LEN) {
+    return;
+  }
+  eeprom_write_byte((uint8_t *)(NAME_EEPROM_ADDR + 1), len);
+  for (unsigned int i = 0; i < len; i++) {
+    eeprom_write_byte((uint8_t *)(NAME_EEPROM_ADDR + 2 + i), data[3 + i]);
+  }
+  // Magic byte written last, so an interrupted write can't leave a
+  // valid-looking but garbage name.
+  eeprom_write_byte((uint8_t *)NAME_EEPROM_ADDR, NAME_EEPROM_MAGIC);
+  SCB_AIRCR = 0x05FA0004;  // reboot to re-enumerate with the new name
+}
+#endif
 
 /**
  * 255 - show led
@@ -53,6 +105,7 @@ void setup() {
 
   #ifdef USB_MIDI
     usbMIDI.setHandleNoteOn(noteOn);
+    usbMIDI.setHandleSystemExclusive(sysEx);
   #endif
 }
 

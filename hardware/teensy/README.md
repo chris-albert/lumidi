@@ -14,3 +14,18 @@ My Current strips are 19 pixels, so at 60mA each, thats (19 * .06) = 1.14A total
 
 Use a 330ohm resister on the data line, between the teensy and the leds.
 Use a 100uF or 1000uF 6.3v cap across the + and - of the leds
+
+## Renaming a device
+
+The USB MIDI name defaults to `luMIDI`, but each device can be given its own
+name so multiple units are distinguishable on one computer. Send this SysEx
+message to the device:
+
+```
+F0 7D 4E <name as ascii bytes> F7
+```
+
+The name (max 31 characters) is saved to EEPROM and the device reboots,
+re-enumerating with the new name. It persists across power cycles and
+firmware re-flashes. Note that Windows may cache the old name until the
+device is removed in Device Manager; macOS picks up the new name on replug.

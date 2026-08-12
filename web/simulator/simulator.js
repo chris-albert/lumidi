@@ -16,6 +16,10 @@ const logEl = document.getElementById('log');
 const bannerEl = document.getElementById('banner');
 const swatchEl = document.getElementById('color-swatch');
 const swatchInfoEl = document.getElementById('color-info');
+const renamePanelEl = document.getElementById('rename-panel');
+const renameOutSel = document.getElementById('rename-output');
+const renameNameEl = document.getElementById('rename-name');
+const renameBtn = document.getElementById('rename-send');
 
 let numLeds = 19;
 let staging = new Uint8Array(MAX_NOTE_LEDS * 3);
@@ -158,6 +162,35 @@ function refreshInputs(midi) {
   selectInput(midi, pick);
 }
 
+function refreshOutputs(midi) {
+  const prev = renameOutSel.value;
+  renameOutSel.textContent = '';
+  renameOutSel.appendChild(new Option('— none —', ''));
+  let pick = '';
+  for (const output of midi.outputs.values()) {
+    renameOutSel.appendChild(new Option(output.name, output.id));
+    // prefer the device itself: freshly-flashed units are named "luMIDI"
+    if (output.id === prev || (!pick && /luMIDI/i.test(output.name))) pick = output.id;
+  }
+  renameOutSel.value = pick;
+}
+
+// Sends the firmware's rename command (see hardware/teensy/src/main.cpp):
+//   F0 7D 4E <ascii name> F7
+// The device stores the name in EEPROM and reboots, so its port drops and
+// comes back under the new name (statechange logs both).
+function renameDevice(midi) {
+  const out = midi.outputs.get(renameOutSel.value);
+  const name = renameNameEl.value.trim();
+  if (!out) { log('--- rename: pick the device\'s MIDI output first ---'); return; }
+  if (!/^[\x20-\x7E]{1,31}$/.test(name)) {
+    log('--- rename: name must be 1-31 plain ascii characters ---');
+    return;
+  }
+  out.send([0xF0, 0x7D, 0x4E, ...[...name].map(c => c.charCodeAt(0)), 0xF7]);
+  log(`--- rename: sent "${name}" to "${out.name}" — device is rebooting to apply it ---`);
+}
+
 async function init() {
   buildStrip();
   countEl.addEventListener('change', buildStrip);
@@ -187,15 +220,27 @@ async function init() {
     return;
   }
   try {
-    const midi = await navigator.requestMIDIAccess();
+    // sysex is only needed for the rename command — if the user declines
+    // that permission, fall back to plain access and hide the rename UI
+    let midi;
+    try {
+      midi = await navigator.requestMIDIAccess({ sysex: true });
+    } catch {
+      midi = await navigator.requestMIDIAccess();
+      renamePanelEl.style.display = 'none';
+      log('--- sysex permission declined: device renaming disabled ---');
+    }
     refreshInputs(midi);
+    refreshOutputs(midi);
     midi.onstatechange = (e) => {
       // ports come and go silently (sleep/wake, Live start/stop, IAC edits)
       // — a disconnect here is the classic "the UI just stopped reacting"
       if (e.port) log(`--- midi ${e.port.type} "${e.port.name}": ${e.port.state}/${e.port.connection} ---`);
       refreshInputs(midi);
+      refreshOutputs(midi);
     };
     inputSel.addEventListener('change', () => selectInput(midi, inputSel.value));
+    renameBtn.addEventListener('click', () => renameDevice(midi));
   } catch (err) {
     banner(`MIDI access denied: ${err.message}`);
   }

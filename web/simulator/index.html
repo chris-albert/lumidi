@@ -60,7 +60,7 @@
       padding-bottom: 2px;
     }
     label { display: flex; align-items: center; gap: 8px; color: #8b949e; }
-    select, input[type="number"], button {
+    select, input[type="number"], input[type="text"], button {
       background: #0b0d10;
       color: #c9d1d9;
       border: 1px solid #30363d;
@@ -71,6 +71,7 @@
     button { cursor: pointer; }
     button:hover { border-color: #58a6ff; }
     #stats.warn { color: #ff7b72; }
+    #rename-panel { display: flex; align-items: center; gap: 8px; }
     #color-panel {
       display: flex;
       align-items: center;
@@ -157,6 +158,13 @@
       <input id="led-count" type="number" min="1" max="42" value="19">
     </label>
     <button id="force-show" title="Manually latch the staged frame (what a note 127 would do)">Show</button>
+    <span id="rename-panel">
+      <label>Rename device
+        <select id="rename-output"><option value="">— none —</option></select>
+        <input id="rename-name" type="text" maxlength="31" size="10" placeholder="new name">
+      </label>
+      <button id="rename-send" title="Send the new name to the device over SysEx — it saves the name and reboots">Rename</button>
+    </span>
     <span id="color-panel" title="Exact decoded color of LED 1 — compare against the device's Hue/Sat/Bright dials">
       <span id="color-swatch"></span>
       <span id="color-info">—</span>

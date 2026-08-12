@@ -7,6 +7,7 @@ ableton/lumidi-logo.svg
 
 # copied into the site at deploy time (see .github/workflows/deploy-pages.yml)
 web/LumiDI.amxd
+web/lumidi-engine.js
 web/circuit.svg
 
 # PlatformIO

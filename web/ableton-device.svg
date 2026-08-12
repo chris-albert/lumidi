@@ -73,12 +73,24 @@
   <text x="283" y="89" font-size="10" fill="#e6e6e6">1 bar</text>
   <path d="M 336 82 l 6 0 l -3 5 z" fill="#9a9a9a"/>
 
-  <!-- debug readout -->
-  <text x="410" y="42" font-size="9" fill="#8a8a8a">debug</text>
-  <rect x="410" y="50" width="62" height="15" rx="2" fill="#1b1b1b" stroke="#444"/>
-  <text x="468" y="61" font-size="10" text-anchor="end" fill="#ffb300" font-family="ui-monospace, Menlo, monospace">38412</text>
-  <rect x="410" y="69" width="62" height="15" rx="2" fill="#1b1b1b" stroke="#444"/>
-  <text x="468" y="80" font-size="10" text-anchor="end" fill="#ffb300" font-family="ui-monospace, Menlo, monospace">3542</text>
-  <rect x="410" y="88" width="88" height="16" rx="2" fill="#1b1b1b" stroke="#444"/>
-  <text x="416" y="99" font-size="10" fill="#c9c9c9" font-family="ui-monospace, Menlo, monospace">playing</text>
+  <!-- virtual LED strip preview -->
+  <rect x="408" y="32" width="88" height="48" rx="4" fill="#141414" stroke="#555"/>
+  <g>
+    <circle cx="417" cy="56" r="6.5" fill="#ff3b30" opacity="0.35"/>
+    <circle cx="417" cy="56" r="4" fill="#ff3b30"/>
+    <circle cx="427" cy="56" r="6.5" fill="#ff8a00" opacity="0.35"/>
+    <circle cx="427" cy="56" r="4" fill="#ff8a00"/>
+    <circle cx="437" cy="56" r="6.5" fill="#ffb300" opacity="0.35"/>
+    <circle cx="437" cy="56" r="4" fill="#ffb300"/>
+    <circle cx="447" cy="56" r="6.5" fill="#a4d92c" opacity="0.35"/>
+    <circle cx="447" cy="56" r="4" fill="#a4d92c"/>
+    <circle cx="457" cy="56" r="6.5" fill="#34d158" opacity="0.35"/>
+    <circle cx="457" cy="56" r="4" fill="#34d158"/>
+    <circle cx="467" cy="56" r="6.5" fill="#2bd4c3" opacity="0.35"/>
+    <circle cx="467" cy="56" r="4" fill="#2bd4c3"/>
+    <circle cx="477" cy="56" r="6.5" fill="#2fb6ff" opacity="0.35"/>
+    <circle cx="477" cy="56" r="4" fill="#2fb6ff"/>
+    <circle cx="487" cy="56" r="6.5" fill="#b45bff" opacity="0.35"/>
+    <circle cx="487" cy="56" r="4" fill="#b45bff"/>
+  </g>
 </svg>

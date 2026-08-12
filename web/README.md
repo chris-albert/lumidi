@@ -1,7 +1,18 @@
-# LumiDI strip simulator
+# LumiDI web site + strip simulator
 
-A browser page that renders the LED strip from the same MIDI stream the Teensy
-consumes, so you can test the Max for Live device (or any raw MIDI) without hardware.
+- **`index.html`** — the landing page: what LumiDI is, how to use the device,
+  parts + circuit to build one, and a download link for `LumiDI.amxd`.
+- **`simulator/`** — a browser page that renders the LED strip from the same MIDI
+  stream the Teensy consumes, so you can test the Max for Live device (or any raw
+  MIDI) without hardware.
+
+The landing page references two files that are copied in at deploy time (see
+`.github/workflows/deploy-pages.yml`) and git-ignored here:
+
+```sh
+python3 ableton/build_amxd.py && cp ableton/LumiDI.amxd web/
+cp hardware/teensy/circuit.svg web/
+```
 
 ## Run
 
@@ -12,7 +23,8 @@ cd web
 python3 -m http.server 8000
 ```
 
-Open <http://localhost:8000> in **Chrome** (Web MIDI required) and allow MIDI access.
+Open <http://localhost:8000/simulator/> in **Chrome** (Web MIDI required) and allow
+MIDI access (the landing page is at the root).
 
 ## Use
 

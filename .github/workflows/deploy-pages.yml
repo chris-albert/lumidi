@@ -1,10 +1,12 @@
-name: Deploy web simulator to GitHub Pages
+name: Deploy web site to GitHub Pages
 
 on:
   push:
     branches: [main]
     paths:
       - "web/**"
+      - "ableton/**"
+      - "hardware/teensy/circuit.svg"
       - ".github/workflows/deploy-pages.yml"
   workflow_dispatch:
 
@@ -25,6 +27,11 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - name: Add downloadable device + circuit diagram to the site
+        run: |
+          python3 ableton/build_amxd.py
+          cp ableton/LumiDI.amxd web/LumiDI.amxd
+          cp hardware/teensy/circuit.svg web/circuit.svg
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

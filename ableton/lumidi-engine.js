@@ -59,7 +59,10 @@ var p = {
   sync: 0,        // 0/1
   syncrate: 3,    // index into SYNC_BEATS (default 1 bar)
   dir: 0,         // 0 forward, 1 reverse
-  on: 1           // 0 -> blackout and stop emitting
+  on: 1,          // 0 -> blackout and stop emitting
+  strip: 1,       // this device's position in a multi-strip rig, 1-based
+  strips: 1       // total strips in the rig; spatial animations render this
+                  // device's window into one virtual strip of strips*19 LEDs
 };
 
 // --- transport state (banged into us right before each tick) ---
@@ -116,6 +119,8 @@ function rate(v)       { p.rate = v; }
 function sync(v)       { p.sync = v | 0; }
 function syncrate(i)   { p.syncrate = i | 0; }
 function dir(i)        { p.dir = i | 0; pushSoon(); }
+function strip(v)      { p.strip = clamp(v | 0, 1, 16); pushNow(); }
+function strips(v)     { p.strips = clamp(v | 0, 1, 16); pushNow(); }
 
 // debounced: dial drags settle before the final frame goes out
 function pushSoon() { pushDirty = true; pushDirtyMs = Date.now(); }
@@ -203,6 +208,7 @@ function status() {
     + " | anim=" + p.anim + " hue=" + Math.round(p.hue) + " sat=" + Math.round(p.sat)
     + " bright=" + Math.round(p.brightness) + " rate=" + p.rate
     + " sync=" + p.sync + " syncrate=" + p.syncrate + " dir=" + p.dir + " on=" + p.on
+    + " strip=" + p.strip + "/" + p.strips
     + " | active=" + deviceActive + " playing=" + transPlaying
     + " ticks=" + Math.round(transTicks) + " tempo=" + transTempo
     + " phase=" + (Math.round(phase * 1000) / 1000)
@@ -273,31 +279,39 @@ function renderFrame() {
   var master = clamp(p.brightness / 100, 0, 1);
   var s = clamp(p.sat / 100, 0, 1);
   var base = hsvToRgb(p.hue, s, 1);
-  var i, level, rgb, pos, d, h, t, step, idx, n0, n1;
+  var i, level, rgb, pos, d, h, t, step, idx, n0, n1, g;
+
+  // multi-strip rig: spatial modes render this device's window into one
+  // virtual strip of `total` pixels — a chase leaves strip N and continues
+  // onto strip N+1. Temporal modes (pulse/breathe/strobe/hue drift) are
+  // position-independent and untouched. 1-of-1 (the default) is identity.
+  var total = NUM_LEDS * p.strips;
+  var winOff = (Math.min(p.strip, p.strips) - 1) * NUM_LEDS;
 
   for (i = 0; i < NUM_LEDS; i++) {
+    g = winOff + i; // this pixel's index in the virtual strip
     if (p.anim === 0) { // solid
       rgb = base;
     } else if (p.anim === 1) { // pulse: peaks on the beat (phase 0)
       level = 0.5 + 0.5 * Math.cos(2 * Math.PI * phase);
       rgb = [base[0] * level, base[1] * level, base[2] * level];
     } else if (p.anim === 2) { // chase: comet head with fading tail
-      pos = phase * NUM_LEDS;
-      d = (p.dir ? pos - i : i - pos);         // pixels behind the head
-      d -= Math.floor(d / NUM_LEDS) * NUM_LEDS; // wrap to 0..NUM_LEDS
-      level = Math.max(0, 1 - d / (NUM_LEDS * 0.5));
+      pos = phase * total;
+      d = (p.dir ? pos - g : g - pos);         // pixels behind the head
+      d -= Math.floor(d / total) * total;       // wrap to 0..total
+      level = Math.max(0, 1 - d / (total * 0.5));
       level = level * level;                    // sharper falloff
       rgb = [base[0] * level, base[1] * level, base[2] * level];
     } else if (p.anim === 3) { // rainbow: hue gradient scrolling along the strip
-      h = p.hue + (i / NUM_LEDS) * 360 + (p.dir ? -1 : 1) * phase * 360;
+      h = p.hue + (g / total) * 360 + (p.dir ? -1 : 1) * phase * 360;
       rgb = hsvToRgb(h, s, 1);
     } else if (p.anim === 4) { // strobe: hard pulse — full on for the first
              // half of the cycle (lands on the beat, like pulse's peak), then off
       level = phase < 0.5 ? 1 : 0;
       rgb = [base[0] * level, base[1] * level, base[2] * level];
     } else if (p.anim === 5) { // scanner: comet bounces end-to-end, no wrap
-      pos = (1 - Math.abs(2 * phase - 1)) * (NUM_LEDS - 1);
-      level = Math.max(0, 1 - Math.abs(i - pos) / 3);
+      pos = (1 - Math.abs(2 * phase - 1)) * (total - 1);
+      level = Math.max(0, 1 - Math.abs(g - pos) / 3);
       level = level * level;
       rgb = [base[0] * level, base[1] * level, base[2] * level];
     } else if (p.anim === 6) { // breathe: eased pulse that dwells near dark
@@ -306,19 +320,20 @@ function renderFrame() {
       rgb = [base[0] * level, base[1] * level, base[2] * level];
     } else if (p.anim === 7) { // wipe: fill from one end over the first half
              // of the cycle, then the lit block drains out the far end
-      idx = p.dir ? NUM_LEDS - 1 - i : i;
-      if (phase < 0.5) level = idx < phase * 2 * NUM_LEDS ? 1 : 0;
-      else             level = idx >= (phase - 0.5) * 2 * NUM_LEDS ? 1 : 0;
+      idx = p.dir ? total - 1 - g : g;
+      if (phase < 0.5) level = idx < phase * 2 * total ? 1 : 0;
+      else             level = idx >= (phase - 0.5) * 2 * total ? 1 : 0;
       rgb = [base[0] * level, base[1] * level, base[2] * level];
     } else if (p.anim === 8) { // theater: marquee — every 3rd pixel, stepping
              // once per third of the cycle
       step = Math.floor(phase * 3);
-      level = (((i + (p.dir ? -step : step)) % 3 + 3) % 3) === 0 ? 1 : 0;
+      level = (((g + (p.dir ? -step : step)) % 3 + 3) % 3) === 0 ? 1 : 0;
       rgb = [base[0] * level, base[1] * level, base[2] * level];
     } else if (p.anim === 9) { // burst: soft-edged disk expands from the
-             // center each cycle, fading as it grows
-      d = Math.abs(i - (NUM_LEDS - 1) / 2);
-      level = clamp(phase * (NUM_LEDS / 2 + 1) - d, 0, 1) * (1 - phase);
+             // center each cycle, fading as it grows — with multiple strips,
+             // from the center of the whole rig
+      d = Math.abs(g - (total - 1) / 2);
+      level = clamp(phase * (total / 2 + 1) - d, 0, 1) * (1 - phase);
       rgb = [base[0] * level, base[1] * level, base[2] * level];
     } else if (p.anim === 10) { // hue drift: solid color, hue rotates the
              // full wheel once per cycle (offset from the Hue dial)
@@ -329,22 +344,22 @@ function renderFrame() {
              // renders the same frame (beat-sync/loop safe)
       t = phaseRaw * 8; // 8 sparkle generations per cycle
       step = Math.floor(t);
-      level = rand01(i + step * NUM_LEDS) > 0.8 ? 1 - (t - step) : 0.06;
+      level = rand01(g + step * total) > 0.8 ? 1 - (t - step) : 0.06;
       rgb = [base[0] * level, base[1] * level, base[2] * level];
     } else if (p.anim === 12) { // fire: per-pixel value noise, hue shifted
              // warmer where brighter; same deterministic hash as sparkle
       t = phaseRaw * 8;
       step = Math.floor(t);
-      n0 = rand01(i + step * NUM_LEDS);
-      n1 = rand01(i + (step + 1) * NUM_LEDS);
+      n0 = rand01(g + step * total);
+      n1 = rand01(g + (step + 1) * total);
       level = 0.25 + 0.75 * (n0 + (n1 - n0) * (t - step));
       rgb = hsvToRgb(p.hue + (level - 0.5) * 50, s, 1);
       rgb = [rgb[0] * level, rgb[1] * level, rgb[2] * level];
     } else if (p.anim === 13) { // flip: left/right halves swap each half-cycle
-      level = (((i < NUM_LEDS / 2 ? 1 : 0) ^ (phase < 0.5 ? 1 : 0) ^ (p.dir ? 1 : 0)) & 1) ? 0 : 1;
+      level = (((g < total / 2 ? 1 : 0) ^ (phase < 0.5 ? 1 : 0) ^ (p.dir ? 1 : 0)) & 1) ? 0 : 1;
       rgb = [base[0] * level, base[1] * level, base[2] * level];
     } else { // wave: two brightness crests scrolling along the strip
-      level = 0.5 + 0.5 * Math.cos(2 * Math.PI * (2 * i / NUM_LEDS + (p.dir ? phase : -phase)));
+      level = 0.5 + 0.5 * Math.cos(2 * Math.PI * (2 * g / total + (p.dir ? phase : -phase)));
       level = level * level;
       rgb = [base[0] * level, base[1] * level, base[2] * level];
     }

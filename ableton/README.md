@@ -32,8 +32,9 @@ next to itself.
    Flip / Wave), **Direction** (reverses chase, rainbow, scanner, wipe,
    theater, hue drift, wave; swaps flip's starting side), **Hue / Sat /
    Bright** (color; swatch shows the result), **Rate** (free-run speed),
-   **Sync + SyncRate** (lock the animation cycle to Live's transport, e.g. 1 bar).
-   All parameters are automatable. Sparkle and Fire use deterministic noise
+   **Sync + SyncRate** (lock the animation cycle to Live's transport, e.g. 1 bar),
+   **Strip / Of** (this device's position in a multi-strip rig — see below;
+   leave at 1 of 1 for a single strip). All parameters are automatable. Sparkle and Fire use deterministic noise
    hashed from the transport position, so a beat-synced loop replays the
    same twinkles every pass.
 5. The strip preview along the device's bottom edge mirrors every frame the
@@ -41,7 +42,16 @@ next to itself.
    animates but the physical strip doesn't, the loss is downstream of the
    device — Live's note pipeline or routing (see Debugging).
 6. Animations only run while the song is playing — stopped transport freezes the
-   frame (color changes still apply). Sync is on by default, so the animation
+   frame (color changes still apply).
+7. **Multi-strip rigs**: run one device per strip (each on its own track /
+   MIDI port) and set **Strip m Of n** on each (up to 16). Spatial animations
+   then render each device's window into one virtual strip of n×19 LEDs — a
+   chase travels off strip 1 onto strip 2, wipe fills the whole rig end to
+   end, rainbow spans one gradient, burst explodes from the rig's center,
+   and sparkle/fire twinkle differently per strip instead of cloning.
+   Temporal animations (pulse, breathe, strobe, hue drift) are
+   position-independent. Keep **Sync on** for multi-strip looks: free-run
+   phase is per-device wall clock, so free-running devices drift apart. Sync is on by default, so the animation
    cycle follows Live's tempo and song position; turn Sync off to free-run at
    the Rate dial's speed instead (still gated by the transport).
 

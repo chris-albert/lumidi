@@ -26,7 +26,7 @@
 
   <!-- Teensy pins -->
   <circle cx="240" cy="200" r="4" class="pin"/>
-  <text x="232" y="195" text-anchor="end">Pin 6 (DOUT)</text>
+  <text x="232" y="195" text-anchor="end">Pin 7 (DOUT)</text>
 
   <circle cx="240" cy="280" r="4" class="pin"/>
   <text x="232" y="275" text-anchor="end">GND</text>

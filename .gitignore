@@ -5,6 +5,10 @@
 ableton/LumiDI.amxd
 ableton/lumidi-logo.svg
 
+# copied into the site at deploy time (see .github/workflows/deploy-pages.yml)
+web/LumiDI.amxd
+web/circuit.svg
+
 # PlatformIO
 hardware/teensy/.pio/
 .DS_Store

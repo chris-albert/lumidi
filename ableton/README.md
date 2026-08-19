@@ -14,7 +14,8 @@ The build also copies the luMIDI logo (`web/favicon.svg`) here as
 `lumidi-logo.svg` (git-ignored) for the device's `[fpic]` to display.
 
 The `.amxd` must stay in this folder — an unfrozen device finds
-`lumidi-engine.js` and `lumidi-logo.svg` by looking next to itself.
+`lumidi-engine.js`, `lumidi-preview.js`, and `lumidi-logo.svg` by looking
+next to itself.
 
 ## Use
 
@@ -35,7 +36,11 @@ The `.amxd` must stay in this folder — an unfrozen device finds
    All parameters are automatable. Sparkle and Fire use deterministic noise
    hashed from the transport position, so a beat-synced loop replays the
    same twinkles every pass.
-5. Animations only run while the song is playing — stopped transport freezes the
+5. The strip preview along the device's bottom edge mirrors every frame the
+   engine emits (drawn by `lumidi-preview.js` in a `[jsui]`). If the preview
+   animates but the physical strip doesn't, the loss is downstream of the
+   device — Live's note pipeline or routing (see Debugging).
+6. Animations only run while the song is playing — stopped transport freezes the
    frame (color changes still apply). Sync is on by default, so the animation
    cycle follows Live's tempo and song position; turn Sync off to free-run at
    the Rate dial's speed instead (still gated by the transport).
@@ -82,6 +87,9 @@ the complete engine state (params, transport, gate, counters).
 If output ever goes missing again, split "device broken" from "Live eating
 notes" by comparing the device's "sent" counter against MIDI Monitor.app on
 the IAC bus (first suspect: the MIDI From feedback loop — Use, step 3).
+The on-device strip preview draws straight from the engine's staged frame
+(it never touches the MIDI path), so preview-moves-but-strip-doesn't also
+points downstream, with zero extra tooling.
 The repo history (PR #12) has a per-burst Max-window accounting mode that
 can be restored for deeper digging.
 

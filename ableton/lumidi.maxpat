@@ -739,8 +739,9 @@
 					"id": "obj-30",
 					"maxclass": "newobj",
 					"numinlets": 1,
-					"numoutlets": 3,
+					"numoutlets": 4,
 					"outlettype": [
+						"",
 						"",
 						"",
 						""
@@ -1074,6 +1075,31 @@
 					],
 					"text": "outputvalue"
 				}
+			},
+			{
+				"box": {
+					"id": "obj-47",
+					"maxclass": "jsui",
+					"filename": "lumidi-preview.js",
+					"numinlets": 1,
+					"numoutlets": 1,
+					"outlettype": [
+						""
+					],
+					"patching_rect": [
+						30.0,
+						470.0,
+						396.0,
+						26.0
+					],
+					"presentation": 1,
+					"presentation_rect": [
+						8.0,
+						90.0,
+						396.0,
+						26.0
+					]
+				}
 			}
 		],
 		"lines": [
@@ -1085,6 +1111,17 @@
 					],
 					"destination": [
 						"obj-2",
+						0
+					]
+				}
+			},{
+				"patchline": {
+					"source": [
+						"obj-30",
+						3
+					],
+					"destination": [
+						"obj-47",
 						0
 					]
 				}

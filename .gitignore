@@ -9,6 +9,7 @@ ableton/lumidi-logo.svg
 web/LumiDI.amxd
 web/lumidi-engine.js
 web/circuit.svg
+web/circuit-usb.svg
 
 # PlatformIO
 hardware/teensy/.pio/

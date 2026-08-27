@@ -6,6 +6,12 @@
 #define LED_PIN     7
 #define NUM_LEDS    19
 
+// Current budget for the strip, in mA. FastLED scales brightness down only
+// when a frame would draw more than this, so a full-white frame can't brown
+// out the supply. 1000 suits a powered USB hub or a USB-C port; use 500 for a
+// plain USB 2.0 port, or your supply's rating if the strip has its own PSU.
+#define MAX_MILLIAMPS 1000
+
 CRGB leds[NUM_LEDS];
 
 #define SHOW_LED_NOTE  127
@@ -97,6 +103,7 @@ void noteOn(byte channel, byte note, byte velocity) {
 
 void setup() {
   FastLED.addLeds<WS2812, LED_PIN, GRB>(leds, NUM_LEDS);
+  FastLED.setMaxPowerInVoltsAndMilliamps(5, MAX_MILLIAMPS);
 
   #ifdef USB_SERIAL
     Serial.begin(9600);

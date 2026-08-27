@@ -17,7 +17,7 @@ The landing page references files that are copied in at deploy time (see
 ```sh
 python3 ableton/build_amxd.py && cp ableton/LumiDI.amxd web/
 cp ableton/lumidi-engine.js web/
-cp hardware/teensy/circuit.svg web/
+cp hardware/teensy/circuit.svg hardware/teensy/circuit-usb.svg web/
 ```
 
 ## Run

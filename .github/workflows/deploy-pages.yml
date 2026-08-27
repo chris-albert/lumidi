@@ -7,6 +7,7 @@ on:
       - "web/**"
       - "ableton/**"
       - "hardware/teensy/circuit.svg"
+      - "hardware/teensy/circuit-usb.svg"
       - ".github/workflows/deploy-pages.yml"
   workflow_dispatch:
 
@@ -33,6 +34,7 @@ jobs:
           cp ableton/LumiDI.amxd web/LumiDI.amxd
           cp ableton/lumidi-engine.js web/lumidi-engine.js
           cp hardware/teensy/circuit.svg web/circuit.svg
+          cp hardware/teensy/circuit-usb.svg web/circuit-usb.svg
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

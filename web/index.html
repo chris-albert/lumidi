@@ -557,7 +557,8 @@
   <section id="build">
     <h2>Build one yourself</h2>
     <p class="lead">
-      The hardware is a Teensy 4.0 and a strip of WS2812Bs plus two passive components.
+      The hardware is a Teensy 4.0 and a strip of WS2812Bs plus two passive components —
+      for a strip this size, USB alone can power it.
       Firmware, the device, and this page all live in
       <a href="https://github.com/chris-albert/lumidi">the repo</a>.
     </p>
@@ -586,19 +587,19 @@
         <td class="price">$1.95</td>
       </tr>
       <tr>
-        <td><a href="https://www.adafruit.com/product/276">5&nbsp;V power supply</a></td>
-        <td>Budget 60&nbsp;mA per pixel: 19 px ≈ 1.14&nbsp;A at full white, so the linked 2&nbsp;A supply has headroom. Power the strip from the PSU, not the Teensy.</td>
+        <td><a href="https://www.adafruit.com/product/276">5&nbsp;V power supply</a> <em>(optional)</em></td>
+        <td>Only for the PSU-powered build below. Budget 60&nbsp;mA per pixel: 19 px ≈ 1.14&nbsp;A at full white, so the linked 2&nbsp;A supply has headroom.</td>
         <td class="price">$7.95</td>
       </tr>
       <tr>
         <td><a href="https://www.adafruit.com/product/592">Micro-USB cable</a></td>
-        <td>Powers the Teensy and carries the MIDI. You probably have one already.</td>
+        <td>Powers the Teensy (and, in the USB-powered build, the strip) and carries the MIDI. You probably have one already.</td>
         <td class="price">$2.95</td>
       </tr>
       <tr class="total">
         <td>Estimated total</td>
         <td></td>
-        <td class="price">≈ $48</td>
+        <td class="price">≈ $40 (≈ $48 with the PSU)</td>
       </tr>
     </table>
     <p class="lead" style="font-size:14px">
@@ -607,9 +608,29 @@
     </p>
 
     <h3>Circuit</h3>
+    <p>
+      The data side is the same either way: Teensy pin 7 through the 330&nbsp;Ω resistor to the
+      strip's DIN. The choice is where the strip's 5&nbsp;V comes from.
+    </p>
+    <p>
+      <strong>USB powered (no PSU).</strong> 19 pixels draw at most ~1.14&nbsp;A, which a powered USB
+      hub or a laptop's USB-C port supplies happily — so the strip can hang off the Teensy's
+      <strong>VIN</strong> pin, which carries the USB 5&nbsp;V. A plain USB 2.0 port only guarantees
+      500&nbsp;mA, so the firmware caps the strip's draw (see below). Keep the capacitor; it matters
+      more here, where there's less headroom for the surge when a frame latches.
+    </p>
     <figure class="circuit">
-      <img src="circuit.svg" alt="Wiring diagram: Teensy pin 7 through a 330-ohm resistor to the strip's DIN; a 5V PSU powering the strip's VDD with a 100–1000 µF capacitor across VDD and GND near the strip; Teensy, PSU, and strip grounds tied together.">
-      <figcaption>Data from Teensy pin 7 through the 330&nbsp;Ω resistor to DIN; strip powered by the PSU; all grounds common.</figcaption>
+      <img src="circuit-usb.svg" alt="Wiring diagram, USB powered: Teensy pin 7 through a 330-ohm resistor to the strip's DIN; the Teensy's VIN pin feeding the strip's VDD with a 100–1000 µF capacitor across VDD and GND near the strip; Teensy and strip grounds tied together.">
+      <figcaption>USB powered: strip VDD fed from the Teensy's VIN pin; grounds common. Plug the Teensy into a powered hub or USB-C port.</figcaption>
+    </figure>
+    <p>
+      <strong>External PSU.</strong> For longer strips, or if all you have is a USB 2.0 port, power
+      the strip from its own 5&nbsp;V supply instead. The Teensy still runs off USB; just tie the
+      grounds together.
+    </p>
+    <figure class="circuit">
+      <img src="circuit.svg" alt="Wiring diagram, PSU powered: Teensy pin 7 through a 330-ohm resistor to the strip's DIN; a 5V PSU powering the strip's VDD with a 100–1000 µF capacitor across VDD and GND near the strip; Teensy, PSU, and strip grounds tied together.">
+      <figcaption>PSU powered: strip VDD fed from the external supply; Teensy, PSU, and strip grounds common.</figcaption>
     </figure>
 
     <h3>Firmware</h3>
@@ -617,7 +638,14 @@
     <pre><code>git clone https://github.com/chris-albert/lumidi.git
 cd lumidi/hardware/teensy
 # set NUM_LEDS in src/main.cpp to your strip length
+# set MAX_MILLIAMPS to what your power source can deliver
 pio run -t upload</code></pre>
+    <p>
+      <code>MAX_MILLIAMPS</code> is the strip's current budget: FastLED estimates each frame's draw and
+      scales brightness down only when it would go over, so a full-white frame can't brown out the
+      port. The default of 1000&nbsp;mA suits a powered hub or USB-C; use 500 for a plain USB 2.0
+      port, or your supply's rating for the PSU build.
+    </p>
     <p>Once flashed, the Teensy enumerates as a USB-MIDI port — point Live's <strong>MIDI To</strong> at it and you're done.</p>
 
     <h3>The MIDI protocol</h3>

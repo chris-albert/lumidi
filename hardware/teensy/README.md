@@ -27,5 +27,13 @@ F0 7D 4E <name as ascii bytes> F7
 
 The name (max 31 characters) is saved to EEPROM and the device reboots,
 re-enumerating with the new name. It persists across power cycles and
-firmware re-flashes. Note that Windows may cache the old name until the
-device is removed in Device Manager; macOS picks up the new name on replug.
+firmware re-flashes.
+
+Both major OSes cache the old name, so MIDI apps keep showing it even though
+the USB descriptor changed (verify the real name with
+`system_profiler SPUSBDataType` on macOS):
+
+- **macOS**: CoreMIDI caches the name per device. Unplug the device, open
+  Audio MIDI Setup → Window → Show MIDI Studio, delete the greyed-out old
+  device, then replug.
+- **Windows**: remove the device in Device Manager, then replug.

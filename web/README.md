@@ -40,7 +40,10 @@ MIDI access (the landing page is at the root).
 - **Rename device** sends the firmware's SysEx rename command (`F0 7D 4E <name> F7`)
   to the selected MIDI output — pick the physical device's port, not an IAC bus.
   The device saves the name (max 31 ascii chars) to EEPROM and reboots under the
-  new name. Requires the browser's SysEx permission prompt.
+  new name. Requires the browser's SysEx permission prompt. Note macOS caches
+  MIDI device names, so the port keeps its old name here and in every MIDI app
+  until you delete the stale device in Audio MIDI Setup → MIDI Studio (with the
+  device unplugged) and replug — see `hardware/teensy/README.md`.
 - The footer logs decoded pixel writes; the header shows latched frames per second.
 
 ## Debugging "I turned a knob and the UI ignored it"

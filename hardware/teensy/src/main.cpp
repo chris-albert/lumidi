@@ -4,7 +4,12 @@
 #include "usb_names.h"
 
 #define LED_PIN     7
-#define NUM_LEDS    19
+
+// Pixels driven, fixed at the protocol's limit (notes 0..125 address 42).
+// A shorter strip simply ignores the data past its last pixel, and unlit
+// pixels cost nothing in the power estimate, so one build fits every strip:
+// set the real length in the LumiDI device's Pixels control instead.
+#define NUM_LEDS    42
 
 // Current budget for the strip, in mA. FastLED scales brightness down only
 // when a frame would draw more than this, so a full-white frame can't brown

@@ -12,6 +12,10 @@ Voltage: DC 5V
 
 My Current strips are 19 pixels, so at 60mA each, thats (19 * .06) = 1.14A total current draw.
 
+The firmware always drives 42 pixels (the MIDI protocol's limit); a shorter strip
+ignores the extra data, so one build fits every strip. Set the real length in the
+LumiDI device's **Pixels** control.
+
 Use a 330ohm resister on the data line, between the teensy and the leds.
 Use a 100uF or 1000uF 6.3v cap across the + and - of the leds
 

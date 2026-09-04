@@ -4,7 +4,8 @@
 // Max 8's SpiderMonkey engine — no let/const/arrows).
 //
 // Protocol (must match hardware/teensy/src/main.cpp):
-//   notes 0..56  : note/3 = LED index, note%3 = channel (0=R 1=G 2=B)
+//   notes 0..125 : note/3 = LED index (up to 42 pixels), note%3 = channel
+//                  (0=R 1=G 2=B)
 //   velocity     : firmware value = velocity*2, except velocity 1 -> 0
 //   velocity 0   : is a note-off, firmware ignores it — never used for writes
 //   note 127     : latch ("show") the staged frame onto the strip
@@ -13,10 +14,12 @@ autowatch = 1;
 inlets = 1;
 outlets = 3; // 0: "pitch velocity" lists -> [midiformat] -> [midiout]
              // 1: "r g b" floats (0..1) -> [swatch] display
-             // 2: debug status ("alive n" / "sent n" / "gate word"), ~1/sec
+             // 2: debug status ("alive n" / "sent n" / "gate word" /
+             //    "layout word"), ~1/sec
 
-var NUM_LEDS = 19;
+var MAX_LEDS = 42;   // notes 0..125; 127 is the show note
 var SHOW_NOTE = 127;
+var MAX_STRIPS = 8;  // slots in the shared layout table
 
 // Velocity-0 note-off after every note-on, DEFERRED one tick so Live can't
 // coalesce a zero-length pair (which would eat pixel writes or the show
@@ -58,7 +61,9 @@ var p = {
   sync: 0,        // 0/1
   syncrate: 3,    // index into SYNC_BEATS (default 1 bar)
   dir: 0,         // 0 forward, 1 reverse
-  on: 1           // 0 -> blackout and stop emitting
+  on: 1,          // 0 -> blackout and stop emitting
+  leds: 19,       // pixels on this device's strip, 1..MAX_LEDS
+  strip: 0        // 0 standalone; 1..MAX_STRIPS = position in a multi-strip layout
 };
 
 // --- transport state (banged into us right before each tick) ---
@@ -66,16 +71,32 @@ var transTicks = 0;   // raw ticks, 480 per beat
 var transTempo = 120; // BPM
 var transPlaying = 0;
 
+// --- multi-strip layout ---
+// Devices with Strip # > 0 share one canvas: every animation renders on the
+// combined run of all strips (ordered by strip number) and each device
+// emits only its own slice. The layout is discovered, not configured: once
+// per tick each engine writes "<id> <pixels> <ms>" into slot strip<n> of a
+// Max Global namespace (shared by every js instance in Live) and reads the
+// other slots back. An entry older than LAYOUT_TTL_MS belongs to a device
+// that was deleted. Outside Max (the web shim) Global doesn't exist and the
+// engine is always standalone.
+var LAYOUT_TTL_MS = 1000;
+var shared = (typeof Global === "function") ? new Global("lumidi") : null;
+var instanceId = Math.floor(Math.random() * 1e9) + 1;
+var stripOffset = 0;      // this strip's first pixel on the shared canvas
+var stripTotal = p.leds;  // pixels on the whole canvas (= p.leds when standalone)
+var layoutWord = "solo";  // debug: "solo" | "2of3 +19/68" | "2 conflict"
+
 // --- animation state ---
 var phase = 0;            // 0..1 position in the animation cycle
 var phaseRaw = 0;         // unwrapped cycles — noise modes hash its integer part
-var lastTickMs = 0;
+var lastTransTicks = -1;  // free-run: transport position already integrated
 var deviceActive = 1;     // Live's device activator (live.thisdevice outlet 1)
 var ticksSinceRefresh = 0;
 var pushDirty = true;     // static output: full frame pending
 var pushDirtyMs = 0;      // when the pending change last arrived (0 = send now)
 var lastPushMs = 0;       // last static frame send, for the drag throttle
-var frame = [];           // staged RGB values 0..255, length NUM_LEDS*3
+var frame = [];           // staged RGB values 0..255, length MAX_LEDS*3
 var lastVel = [];         // last velocity sent per channel, -1 = never sent
 var pendingOffs = [];     // note-offs owed for the previous batch's note-ons
 
@@ -100,7 +121,7 @@ function resetBuffers() {
   var i;
   frame = [];
   lastVel = [];
-  for (i = 0; i < NUM_LEDS * 3; i++) {
+  for (i = 0; i < MAX_LEDS * 3; i++) {
     frame[i] = 0;
     lastVel[i] = -1;
   }
@@ -115,6 +136,32 @@ function rate(v)       { p.rate = v; }
 function sync(v)       { p.sync = v | 0; }
 function syncrate(i)   { p.syncrate = i | 0; }
 function dir(i)        { p.dir = i | 0; pushSoon(); }
+
+// strip length. Shrinking clears the pixels past the new end first — writes
+// only ever reach 0..n-1, so the hardware would keep showing their last color.
+function leds(n) {
+  var i;
+  n = clamp(n | 0, 1, MAX_LEDS);
+  if (n === p.leds) return;
+  if (n < p.leds) {
+    for (i = n * 3; i < p.leds * 3; i++) frame[i] = 0;
+    sendFrame();
+  }
+  p.leds = n;
+  invalidate();
+  pushNow();
+}
+
+// position in the multi-strip layout, 0 = standalone
+function strip(n) {
+  n = clamp(n | 0, 0, MAX_STRIPS);
+  if (n === p.strip) return;
+  releaseSlot(p.strip); // no phantom entry under the old number
+  p.strip = n;
+  updateLayout();
+  invalidate();
+  pushNow();
+}
 
 // debounced: dial drags settle before the final frame goes out
 function pushSoon() { pushDirty = true; pushDirtyMs = Date.now(); }
@@ -136,7 +183,7 @@ function active(v) {
 
 function invalidate() {
   var i;
-  for (i = 0; i < NUM_LEDS * 3; i++) lastVel[i] = -1;
+  for (i = 0; i < MAX_LEDS * 3; i++) lastVel[i] = -1;
 }
 
 function ticks(t)   { transTicks = t; }
@@ -146,6 +193,8 @@ function playing(s) {
   s = s | 0;
   if (s === transPlaying) return;
   transPlaying = s;
+  // free-run restarts with the song, so every device in a layout agrees
+  if (s) { phaseRaw = 0; lastTransTicks = -1; }
   // stop: push one final frame at the frozen phase, then go silent.
   // start: full resend to self-heal anything dropped while static.
   invalidate();
@@ -191,6 +240,7 @@ function sendStatus() {
   outlet(2, "alive", dbgAlive);
   outlet(2, "sent", dbgSent);
   outlet(2, "gate", gateWord());
+  outlet(2, "layout", layoutWord);
   dbgSent = 0;
 }
 
@@ -202,10 +252,13 @@ function status() {
     + " | anim=" + p.anim + " hue=" + Math.round(p.hue) + " sat=" + Math.round(p.sat)
     + " bright=" + Math.round(p.brightness) + " rate=" + p.rate
     + " sync=" + p.sync + " syncrate=" + p.syncrate + " dir=" + p.dir + " on=" + p.on
+    + " | leds=" + p.leds + " strip=" + p.strip + " layout=" + layoutWord
+    + " offset=" + stripOffset + " total=" + stripTotal
     + " | active=" + deviceActive + " playing=" + transPlaying
     + " ticks=" + Math.round(transTicks) + " tempo=" + transTempo
     + " phase=" + (Math.round(phase * 1000) / 1000)
-    + " | alive=" + dbgAlive + " pendingOffs=" + pendingOffs.length);
+    + " | alive=" + dbgAlive + " sentThisSec=" + dbgSent
+    + " pendingOffs=" + pendingOffs.length);
 }
 
 function dbg(s) {
@@ -214,11 +267,9 @@ function dbg(s) {
 
 function tick() {
   var now = Date.now();
-  var dt = lastTickMs ? (now - lastTickMs) / 1000 : 0;
-  lastTickMs = now;
-  if (dt < 0 || dt > 0.25) dt = 0.033; // reload / stall guard
 
   flushOffs(); // release the previous batch's note-offs (even when gated)
+  updateLayout(); // heartbeat + re-read the other strips (even when gated)
 
   if (!p.on || !deviceActive) return;
 
@@ -250,19 +301,26 @@ function tick() {
     invalidate();
   }
 
-  advancePhase(dt);
+  advancePhase();
   renderFrame();
   sendFrame();
 }
 
-// Only called while the transport is playing.
-function advancePhase(dt) {
+// Only called while the transport is playing. Both branches derive from the
+// transport rather than wall-clock time, so every device in a layout renders
+// the same phase for the same song position.
+function advancePhase() {
   var beatsPerCycle = SYNC_BEATS[p.syncrate] || 4;
   if (p.sync) {
     // beat-locked: derive phase directly from Live's transport position
     phaseRaw = (transTicks / 480) / beatsPerCycle;
   } else {
-    phaseRaw += dt * p.rate;
+    // free-run: integrate elapsed song time (seconds) at the Rate dial's Hz.
+    // A backwards jump (loop point) is skipped, not rewound.
+    if (lastTransTicks >= 0 && transTicks > lastTransTicks) {
+      phaseRaw += (transTicks - lastTransTicks) / 480 * (60 / transTempo) * p.rate;
+    }
+    lastTransTicks = transTicks;
   }
   phase = phaseRaw - Math.floor(phaseRaw);
 }
@@ -274,29 +332,33 @@ function renderFrame() {
   var base = hsvToRgb(p.hue, s, 1);
   var i, level, rgb, pos, d, h, t, step, idx, n0, n1;
 
-  for (i = 0; i < NUM_LEDS; i++) {
+  var N = stripTotal;   // canvas length: the whole layout, or this strip alone
+  var g;                // pixel index on the canvas (i is local to this strip)
+
+  for (i = 0; i < p.leds; i++) {
+    g = stripOffset + i;
     if (p.anim === 0) { // solid
       rgb = base;
     } else if (p.anim === 1) { // pulse: peaks on the beat (phase 0)
       level = 0.5 + 0.5 * Math.cos(2 * Math.PI * phase);
       rgb = [base[0] * level, base[1] * level, base[2] * level];
     } else if (p.anim === 2) { // chase: comet head with fading tail
-      pos = phase * NUM_LEDS;
-      d = (p.dir ? pos - i : i - pos);         // pixels behind the head
-      d -= Math.floor(d / NUM_LEDS) * NUM_LEDS; // wrap to 0..NUM_LEDS
-      level = Math.max(0, 1 - d / (NUM_LEDS * 0.5));
+      pos = phase * N;
+      d = (p.dir ? pos - g : g - pos);         // pixels behind the head
+      d -= Math.floor(d / N) * N; // wrap to 0..N
+      level = Math.max(0, 1 - d / (N * 0.5));
       level = level * level;                    // sharper falloff
       rgb = [base[0] * level, base[1] * level, base[2] * level];
     } else if (p.anim === 3) { // rainbow: hue gradient scrolling along the strip
-      h = p.hue + (i / NUM_LEDS) * 360 + (p.dir ? -1 : 1) * phase * 360;
+      h = p.hue + (g / N) * 360 + (p.dir ? -1 : 1) * phase * 360;
       rgb = hsvToRgb(h, s, 1);
     } else if (p.anim === 4) { // strobe: hard pulse — full on for the first
              // half of the cycle (lands on the beat, like pulse's peak), then off
       level = phase < 0.5 ? 1 : 0;
       rgb = [base[0] * level, base[1] * level, base[2] * level];
     } else if (p.anim === 5) { // scanner: comet bounces end-to-end, no wrap
-      pos = (1 - Math.abs(2 * phase - 1)) * (NUM_LEDS - 1);
-      level = Math.max(0, 1 - Math.abs(i - pos) / 3);
+      pos = (1 - Math.abs(2 * phase - 1)) * (N - 1);
+      level = Math.max(0, 1 - Math.abs(g - pos) / 3);
       level = level * level;
       rgb = [base[0] * level, base[1] * level, base[2] * level];
     } else if (p.anim === 6) { // breathe: eased pulse that dwells near dark
@@ -305,19 +367,19 @@ function renderFrame() {
       rgb = [base[0] * level, base[1] * level, base[2] * level];
     } else if (p.anim === 7) { // wipe: fill from one end over the first half
              // of the cycle, then the lit block drains out the far end
-      idx = p.dir ? NUM_LEDS - 1 - i : i;
-      if (phase < 0.5) level = idx < phase * 2 * NUM_LEDS ? 1 : 0;
-      else             level = idx >= (phase - 0.5) * 2 * NUM_LEDS ? 1 : 0;
+      idx = p.dir ? N - 1 - g : g;
+      if (phase < 0.5) level = idx < phase * 2 * N ? 1 : 0;
+      else             level = idx >= (phase - 0.5) * 2 * N ? 1 : 0;
       rgb = [base[0] * level, base[1] * level, base[2] * level];
     } else if (p.anim === 8) { // theater: marquee — every 3rd pixel, stepping
              // once per third of the cycle
       step = Math.floor(phase * 3);
-      level = (((i + (p.dir ? -step : step)) % 3 + 3) % 3) === 0 ? 1 : 0;
+      level = (((g + (p.dir ? -step : step)) % 3 + 3) % 3) === 0 ? 1 : 0;
       rgb = [base[0] * level, base[1] * level, base[2] * level];
     } else if (p.anim === 9) { // burst: soft-edged disk expands from the
              // center each cycle, fading as it grows
-      d = Math.abs(i - (NUM_LEDS - 1) / 2);
-      level = clamp(phase * (NUM_LEDS / 2 + 1) - d, 0, 1) * (1 - phase);
+      d = Math.abs(g - (N - 1) / 2);
+      level = clamp(phase * (N / 2 + 1) - d, 0, 1) * (1 - phase);
       rgb = [base[0] * level, base[1] * level, base[2] * level];
     } else if (p.anim === 10) { // hue drift: solid color, hue rotates the
              // full wheel once per cycle (offset from the Hue dial)
@@ -328,22 +390,22 @@ function renderFrame() {
              // renders the same frame (beat-sync/loop safe)
       t = phaseRaw * 8; // 8 sparkle generations per cycle
       step = Math.floor(t);
-      level = rand01(i + step * NUM_LEDS) > 0.8 ? 1 - (t - step) : 0.06;
+      level = rand01(g + step * N) > 0.8 ? 1 - (t - step) : 0.06;
       rgb = [base[0] * level, base[1] * level, base[2] * level];
     } else if (p.anim === 12) { // fire: per-pixel value noise, hue shifted
              // warmer where brighter; same deterministic hash as sparkle
       t = phaseRaw * 8;
       step = Math.floor(t);
-      n0 = rand01(i + step * NUM_LEDS);
-      n1 = rand01(i + (step + 1) * NUM_LEDS);
+      n0 = rand01(g + step * N);
+      n1 = rand01(g + (step + 1) * N);
       level = 0.25 + 0.75 * (n0 + (n1 - n0) * (t - step));
       rgb = hsvToRgb(p.hue + (level - 0.5) * 50, s, 1);
       rgb = [rgb[0] * level, rgb[1] * level, rgb[2] * level];
     } else if (p.anim === 13) { // flip: left/right halves swap each half-cycle
-      level = (((i < NUM_LEDS / 2 ? 1 : 0) ^ (phase < 0.5 ? 1 : 0) ^ (p.dir ? 1 : 0)) & 1) ? 0 : 1;
+      level = (((g < N / 2 ? 1 : 0) ^ (phase < 0.5 ? 1 : 0) ^ (p.dir ? 1 : 0)) & 1) ? 0 : 1;
       rgb = [base[0] * level, base[1] * level, base[2] * level];
     } else { // wave: two brightness crests scrolling along the strip
-      level = 0.5 + 0.5 * Math.cos(2 * Math.PI * (2 * i / NUM_LEDS + (p.dir ? phase : -phase)));
+      level = 0.5 + 0.5 * Math.cos(2 * Math.PI * (2 * g / N + (p.dir ? phase : -phase)));
       level = level * level;
       rgb = [base[0] * level, base[1] * level, base[2] * level];
     }
@@ -357,7 +419,7 @@ function renderFrame() {
 function sendFrame() {
   flushOffs(); // previous batch's offs always precede this batch's ons
   var i, vel, changed = false;
-  for (i = 0; i < NUM_LEDS * 3; i++) {
+  for (i = 0; i < p.leds * 3; i++) {
     vel = toVel(frame[i]);
     if (vel !== lastVel[i]) {
       noteOut(i, vel);
@@ -370,7 +432,7 @@ function sendFrame() {
 
 function blackout() {
   var i;
-  for (i = 0; i < NUM_LEDS * 3; i++) frame[i] = 0;
+  for (i = 0; i < p.leds * 3; i++) frame[i] = 0;
   sendFrame(); // diffed: already-dark channels send nothing
 }
 
@@ -395,6 +457,66 @@ function toVel(b) {
   if (v < 2) v = 2;
   if (v > 127) v = 127;
   return v;
+}
+
+// --- multi-strip layout (state and protocol: see the top of the file) ---
+function slotName(n) { return "strip" + n; }
+
+// "<id> <pixels> <ms>" -> {id, leds}, or null when missing/expired/garbage
+function readSlot(n, now) {
+  var raw = shared[slotName(n)];
+  if (typeof raw !== "string") return null;
+  var f = raw.split(" ");
+  if (f.length !== 3) return null;
+  var id = f[0] | 0, leds = f[1] | 0, ms = +f[2];
+  if (!id || leds < 1 || leds > MAX_LEDS) return null;
+  if (!(now - ms < LAYOUT_TTL_MS)) return null; // expired (NaN-safe)
+  return { id: id, leds: leds };
+}
+
+function releaseSlot(n) {
+  if (!shared || !n) return;
+  var e = readSlot(n, Date.now());
+  if (e && e.id === instanceId) shared[slotName(n)] = "";
+}
+
+// Once per tick: claim our slot, then derive offset/total from every live
+// slot. Sets the canvas the next renderFrame() draws on.
+function updateLayout() {
+  var now = Date.now();
+  var offset = 0, total = 0, count = 0, word, i, e;
+  if (!shared || !p.strip) {
+    word = "solo";
+    total = p.leds;
+  } else {
+    e = readSlot(p.strip, now);
+    if (e && e.id !== instanceId) {
+      // another device claims the same number: stay standalone rather than
+      // fight over the slot; the debug readout names the clash
+      word = p.strip + " conflict";
+      total = p.leds;
+    } else {
+      shared[slotName(p.strip)] = instanceId + " " + p.leds + " " + now;
+      for (i = 1; i <= MAX_STRIPS; i++) {
+        e = i === p.strip ? { leds: p.leds } : readSlot(i, now);
+        if (!e) continue;
+        if (i < p.strip) offset += e.leds;
+        total += e.leds;
+        count++;
+      }
+      word = p.strip + "of" + count + " +" + offset + "/" + total;
+    }
+  }
+  if (offset !== stripOffset || total !== stripTotal) {
+    stripOffset = offset;
+    stripTotal = total;
+    invalidate();
+    pushNow(); // static output re-renders on the new canvas
+  }
+  if (word !== layoutWord) {
+    layoutWord = word;
+    dbg("lumidi-engine: layout " + word);
+  }
 }
 
 // --- helpers ---

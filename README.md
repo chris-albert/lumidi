@@ -12,8 +12,8 @@ Ableton Live
 
 ## Components
 
-- **`hardware/teensy/`** — PlatformIO firmware. Notes 0–56 set one color channel of one pixel (note/3 = LED, note%3 = R/G/B, value = velocity×2, velocity 1 writes 0), note 127 latches the frame.
-- **`ableton/`** — the LumiDI Max for Live MIDI effect: solid / pulse / chase / rainbow animations, HSV color, brightness, speed, tempo sync. See [ableton/README.md](ableton/README.md).
+- **`hardware/teensy/`** — PlatformIO firmware. Notes 0–125 set one color channel of one pixel (note/3 = LED, up to 42 pixels; note%3 = R/G/B, value = velocity×2, velocity 1 writes 0), note 127 latches the frame. One build fits any strip length.
+- **`ableton/`** — the LumiDI Max for Live MIDI effect: solid / pulse / chase / rainbow animations, HSV color, brightness, speed, tempo sync, per-strip pixel count, and multi-strip layouts (several devices rendering one animation across their strips). See [ableton/README.md](ableton/README.md).
 - **`web/`** — the landing page plus a browser strip simulator (under `/simulator/`) that listens to the same MIDI stream. See [web/README.md](web/README.md).
 
 ## One-time macOS setup for the simulator (IAC bus)

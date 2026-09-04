@@ -573,7 +573,7 @@
       </tr>
       <tr>
         <td><a href="https://www.adafruit.com/product/1376">WS2812B LED strip, 5&nbsp;V</a></td>
-        <td>1&nbsp;m at 30 px/m (5050 RGB, aka NeoPixel). The firmware defaults to 19 pixels; the MIDI protocol addresses up to 42.</td>
+        <td>1&nbsp;m at 30 px/m (5050 RGB, aka NeoPixel). Any length up to 42 pixels (the MIDI protocol's limit) — set the device's Pixels control to match.</td>
         <td class="price">$9.95</td>
       </tr>
       <tr>
@@ -637,10 +637,13 @@
     <p>The firmware is a <a href="https://platformio.org">PlatformIO</a> project using FastLED:</p>
     <pre><code>git clone https://github.com/chris-albert/lumidi.git
 cd lumidi/hardware/teensy
-# set NUM_LEDS in src/main.cpp to your strip length
 # set MAX_MILLIAMPS to what your power source can deliver
 pio run -t upload</code></pre>
     <p>
+      The firmware drives 42 pixels — the protocol's limit — whatever the strip's length, so one
+      build fits every strip; tell the device how long yours is with its Pixels control. Several
+      strips on several Teensys can be numbered into one layout and run a single animation end to
+      end (see the device's README).
       <code>MAX_MILLIAMPS</code> is the strip's current budget: FastLED estimates each frame's draw and
       scales brightness down only when it would go over, so a full-white frame can't brown out the
       port. The default of 1000&nbsp;mA suits a powered hub or USB-C; use 500 for a plain USB 2.0

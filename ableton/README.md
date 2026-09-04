@@ -31,20 +31,58 @@ The `.amxd` must stay in this folder — an unfrozen device finds
    Flip / Wave), **Direction** (reverses chase, rainbow, scanner, wipe,
    theater, hue drift, wave; swaps flip's starting side), **Hue / Sat /
    Bright** (color; swatch shows the result), **Rate** (free-run speed),
-   **Sync + SyncRate** (lock the animation cycle to Live's transport, e.g. 1 bar).
+   **Sync + SyncRate** (lock the animation cycle to Live's transport, e.g. 1 bar),
+   **Pixels** (the strip's length, 1–42), **Strip** (0 = standalone, 1–8 = this
+   strip's position in a multi-strip layout — see below).
    All parameters are automatable. Sparkle and Fire use deterministic noise
    hashed from the transport position, so a beat-synced loop replays the
    same twinkles every pass.
 5. Animations only run while the song is playing — stopped transport freezes the
    frame (color changes still apply). Sync is on by default, so the animation
    cycle follows Live's tempo and song position; turn Sync off to free-run at
-   the Rate dial's speed instead (still gated by the transport).
+   the Rate dial's speed instead (still gated by the transport; the free-run
+   cycle restarts from zero whenever the song starts).
+
+## Multiple strips
+
+Each Teensy gets its own MIDI track with its own LumiDI device, and each
+device's **Pixels** is set to its strip's length. The firmware always drives
+42 pixels, so no per-unit firmware build is needed — Pixels is the only place
+the length lives. With **Strip** at 0 every device is standalone: it renders
+its animation over its own strip and knows nothing about the others.
+
+To run one animation across several strips, number them **Strip** 1, 2, 3 …
+in physical order. Devices with a non-zero Strip discover each other inside
+Live (each engine writes its number and length into a `Global("lumidi")`
+namespace, which Max shares between every `[js]` instance, and reads the
+others back once per tick). Together they form one canvas — the strips laid
+end to end, ordered by number — and every animation is rendered on that
+canvas, each device emitting only its own slice: a chase runs off the end of
+strip 1 straight onto strip 2, a rainbow is one gradient across all of them.
+Each device keeps its own controls, so for a seamless picture give them the
+same Animation, Direction, Sync and Rate (or map them to one macro).
+
+Details worth knowing:
+
+- Nothing is stored beyond the two parameters: the layout is rebuilt every
+  tick, so load order doesn't matter and gaps in the numbering are fine.
+- A deleted or bypassed-and-removed device drops out of the layout after
+  about a second and the rest re-flow.
+- Two devices on the same number don't fight: the later one stays standalone
+  and posts `2 conflict` (for strip 2) to the Max window.
+- Alignment: with Sync on, every device derives its phase from the song
+  position, so they are always in step. With Sync off the phase is integrated
+  from transport time and restarted at every play, so devices present when
+  the song starts stay in step; a device added mid-song lines up at the next
+  play.
+- The web simulator is one strip per page: open one tab per IAC bus to watch
+  a layout.
 
 ## Development
 
 - Edit `lumidi-engine.js` in any editor — `autowatch = 1` hot-reloads it while the
   device is open. A reload resets the engine's internal parameter state, so on
-  its first tick after any compile the engine sends `resync` out its debug
+  its first tick after any compile the engine sends `resync` out its status
   outlet and the patch answers by sending `outputvalue` to every control —
   the dials re-push their values automatically (no need to touch a control).
   Note `bang` would NOT work for this: it flips `live.toggle` state.
@@ -58,20 +96,7 @@ The `.amxd` must stay in this folder — an unfrozen device finds
 
 ## Debugging
 
-The device shows a live debug readout on its right edge:
-
-- **top number ("alive")** — total engine ticks; it should climb continuously.
-  Frozen = the metro or the js object is dead (check the Max window).
-- **bottom number ("sent")** — MIDI messages emitted in the last second.
-  Solid color sitting idle = 0; changing a color = a brief burst; a playing
-  animation ≈ 3500.
-- **gate word** — what the engine is doing / what's blocking output:
-  `solid` (idle, event-driven), `playing` (streaming animation),
-  `waiting-for-play` (animation selected but Live's transport is stopped),
-  `off` (On toggle), `bypassed` (device activator), `error` (tick threw —
-  the exception is posted to the Max window).
-
-For more detail, right-click the device title bar → **Open Max Window**:
+Right-click the device title bar → **Open Max Window**:
 every engine hot-reload posts `lumidi-engine loaded` followed by
 `fresh compile — requested parameter resync` (the engine re-pulling the
 dials' values; if the resync line is missing, the device was built from a
@@ -80,8 +105,9 @@ distinct error, and sending the message `status` to the js object dumps
 the complete engine state (params, transport, gate, counters).
 
 If output ever goes missing again, split "device broken" from "Live eating
-notes" by comparing the device's "sent" counter against MIDI Monitor.app on
-the IAC bus (first suspect: the MIDI From feedback loop — Use, step 3).
+notes" by comparing `sentThisSec` in the `status` dump (messages the engine
+emitted so far this second) against MIDI Monitor.app on the IAC bus (first
+suspect: the MIDI From feedback loop — Use, step 3).
 The repo history (PR #12) has a per-burst Max-window accounting mode that
 can be restored for deeper digging.
 

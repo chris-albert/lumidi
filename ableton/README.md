@@ -89,8 +89,10 @@ Details worth knowing:
 - Edit the UI by opening the device in Max (click the device's edit button in Live).
   If you save from Max, the `.amxd` on disk changes — extract the JSON back into
   `lumidi.maxpat` (the ptch chunk is the patcher JSON; see `build_amxd.py`).
-- **Do not freeze the device**: freezing embeds a copy of the js that silently
-  shadows the file on disk.
+- **Do not freeze the device in Max**: freezing embeds a copy of the js that
+  silently shadows the file on disk. The site's download is frozen, but by
+  `build_amxd.py --freeze` (which embeds the engine + logo so the download is
+  self-contained), never from Max.
 - The engine is testable without Max: see the harness pattern in the repo history
   (stub `outlet()`, load the file, feed it `tick`/parameter messages).
 

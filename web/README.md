@@ -15,7 +15,7 @@ The landing page references files that are copied in at deploy time (see
 `.github/workflows/deploy-pages.yml`) and git-ignored here:
 
 ```sh
-python3 ableton/build_amxd.py && cp ableton/LumiDI.amxd web/
+python3 ableton/build_amxd.py --freeze && cp ableton/LumiDI.amxd web/
 cp ableton/lumidi-engine.js web/
 cp hardware/teensy/circuit.svg hardware/teensy/circuit-usb.svg web/
 ```

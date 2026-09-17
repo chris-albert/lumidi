@@ -30,7 +30,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Add downloadable device + circuit diagram to the site
         run: |
-          python3 ableton/build_amxd.py
+          python3 ableton/build_amxd.py --freeze
           cp ableton/LumiDI.amxd web/LumiDI.amxd
           cp ableton/lumidi-engine.js web/lumidi-engine.js
           cp hardware/teensy/circuit.svg web/circuit.svg

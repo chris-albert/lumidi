@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>luMIDI Stage Simulator</title>
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <style>
+    :root { color-scheme: dark; }
+    body {
+      margin: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background: #0b0d10;
+      color: #c9d1d9;
+      font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    header {
+      box-sizing: border-box;
+      padding: 14px 20px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px 24px;
+      align-items: center;
+      background: #11151a;
+      border-bottom: 1px solid #1f242b;
+    }
+    h1 {
+      font-size: 18px;
+      margin: 0;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      letter-spacing: 0.02em;
+    }
+    h1 .midi {
+      background: linear-gradient(90deg, #ff3b30, #ffb300, #34d158, #2fb6ff, #b45bff);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+    h1 a {
+      color: inherit;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    h1 .sub {
+      font-size: 12px;
+      font-weight: 400;
+      color: #8b949e;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      align-self: flex-end;
+      padding-bottom: 2px;
+    }
+    header > a { color: #8b949e; }
+    label { display: flex; align-items: center; gap: 8px; color: #8b949e; }
+    select, input[type="number"], input[type="text"], button {
+      background: #0b0d10;
+      color: #c9d1d9;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 4px 8px;
+      font: inherit;
+    }
+    button { cursor: pointer; }
+    button:hover { border-color: #58a6ff; }
+    #stats { margin-left: auto; color: #8b949e; font-variant-numeric: tabular-nums; }
+    #banner {
+      padding: 10px 20px;
+      background: #3d1d1d;
+      color: #ff7b72;
+      display: none;
+    }
+    main { flex: 1; display: flex; min-height: 0; }
+
+    /* --- the stage: devices are positioned by their center, in stage px --- */
+    #stage {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      background-image: radial-gradient(#1a1f26 1px, transparent 1px);
+      background-size: 24px 24px;
+    }
+    .device {
+      position: absolute;
+      display: flex;
+      gap: 6px;
+      padding: 7px 9px;
+      border-radius: 12px;
+      background: #11151a;
+      border: 1px solid #1f242b;
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
+    }
+    .device.selected { border-color: #58a6ff; z-index: 1; }
+    .led {
+      flex: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: rgb(20, 20, 20);
+      border: 1px solid #21262d;
+    }
+    /* the name sits off the LED-1 end, so it doubles as the "start" marker */
+    .device .name {
+      position: absolute;
+      left: -34px;
+      top: 50%;
+      font-size: 11px;
+      color: #8b949e;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+    .device.selected .name { color: #c9d1d9; }
+    .device .rotate {
+      position: absolute;
+      left: calc(100% + 10px);
+      top: 50%;
+      width: 12px;
+      height: 12px;
+      margin-top: -7px;
+      border-radius: 50%;
+      border: 1px solid #58a6ff;
+      background: #0b0d10;
+      cursor: crosshair;
+      display: none;
+    }
+    .device.selected .rotate, .device:hover .rotate { display: block; }
+
+    /* --- side panel: one card per device --- */
+    #panel {
+      width: 290px;
+      box-sizing: border-box;
+      overflow-y: auto;
+      padding: 12px;
+      background: #0d1117;
+      border-left: 1px solid #1f242b;
+    }
+    #empty { color: #6e7681; }
+    .card {
+      padding: 10px;
+      margin-bottom: 10px;
+      border: 1px solid #1f242b;
+      border-radius: 8px;
+      background: #11151a;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 6px 8px;
+      align-items: center;
+      font-size: 12px;
+      color: #8b949e;
+    }
+    .card.selected { border-color: #58a6ff; }
+    .card select, .card input { min-width: 0; width: 100%; box-sizing: border-box; }
+    .card .row { grid-column: 1 / -1; display: flex; gap: 8px; align-items: center; }
+    .card .row button { margin-left: auto; }
+    .card .stats { font-variant-numeric: tabular-nums; }
+    .card .stats.warn { color: #ff7b72; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>
+      <a href="../" title="luMIDI home">
+      <svg width="30" height="30" viewBox="0 0 64 64" aria-hidden="true">
+        <circle cx="32" cy="32" r="28" fill="#1b2027" stroke="#454f5b" stroke-width="3"/>
+        <rect x="29" y="51" width="6" height="7" rx="2" fill="#454f5b"/>
+        <circle cx="17" cy="35" r="7" fill="#ff3b30" opacity="0.3"/>
+        <circle cx="17" cy="35" r="4.5" fill="#ff3b30"/>
+        <circle cx="21.4" cy="24.4" r="7" fill="#ffb300" opacity="0.3"/>
+        <circle cx="21.4" cy="24.4" r="4.5" fill="#ffb300"/>
+        <circle cx="32" cy="20" r="7" fill="#34d158" opacity="0.3"/>
+        <circle cx="32" cy="20" r="4.5" fill="#34d158"/>
+        <circle cx="42.6" cy="24.4" r="7" fill="#2fb6ff" opacity="0.3"/>
+        <circle cx="42.6" cy="24.4" r="4.5" fill="#2fb6ff"/>
+        <circle cx="47" cy="35" r="7" fill="#b45bff" opacity="0.3"/>
+        <circle cx="47" cy="35" r="4.5" fill="#b45bff"/>
+      </svg>
+      <span>lu<span class="midi">MIDI</span></span>
+      </a>
+      <span class="sub">stage simulator</span>
+    </h1>
+    <button id="add-device" title="Add a virtual strip to the stage">+ Add device</button>
+    <a href="../simulator/">single-strip simulator</a>
+    <span id="stats">0 devices</span>
+  </header>
+  <div id="banner"></div>
+  <main>
+    <div id="stage"></div>
+    <aside id="panel"></aside>
+  </main>
+  <script src="stage.js"></script>
+</body>
+</html>

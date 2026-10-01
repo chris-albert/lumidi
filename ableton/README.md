@@ -75,8 +75,9 @@ Details worth knowing:
   from transport time and restarted at every play, so devices present when
   the song starts stay in step; a device added mid-song lines up at the next
   play.
-- The web simulator is one strip per page: open one tab per IAC bus to watch
-  a layout.
+- To preview a layout without hardware, use the web **stage simulator**
+  (`web/stage/`): it places one virtual strip per device in 2D, each listening
+  on its own MIDI channel (or its own IAC bus). See `web/README.md`.
 
 ## Development
 

@@ -11,6 +11,10 @@
   stream the Teensy consumes, so you can test the Max for Live device (or any raw
   MIDI) without hardware.
 
+- **`stage/`** — the multi-device version of the simulator: any number of
+  virtual strips placed (and rotated) on a 2D stage, for previewing a show
+  across several devices.
+
 The landing page references files that are copied in at deploy time (see
 `.github/workflows/deploy-pages.yml`) and git-ignored here:
 
@@ -42,6 +46,27 @@ MIDI access (the landing page is at the root).
   The device saves the name (max 31 ascii chars) to EEPROM and reboots under the
   new name. Requires the browser's SysEx permission prompt.
 - The footer logs decoded pixel writes; the header shows latched frames per second.
+
+## Stage simulator (many devices)
+
+Open <http://localhost:8000/stage/>. **+ Add device** puts a virtual strip on
+the stage; drag it to position it, and drag the round handle past its last LED
+to rotate it (shift snaps to 15°). The name label sits at the LED-1 end, so the
+strip's direction is always visible. The layout is saved in the browser
+(localStorage).
+
+Each device has its own card in the side panel: **Name**, **MIDI input**,
+**Channel**, **LEDs** (match the Live device's Pixels) and **Rotation**. A
+real Teensy is a whole MIDI port and ignores the channel; the stage instead
+addresses a virtual device by *input + channel*, so a whole layout fits on one
+IAC bus: give every LumiDI track **MIDI To** → the same IAC bus with a
+different channel (Ch. 1, Ch. 2, …) and set each virtual device to match —
+new devices default to the next free channel. One IAC bus per device with
+Channel "any" works too.
+
+The stage only draws; it has no log or latch diagnostics. When one strip
+misbehaves, use the single-strip simulator and the checklist below — it
+ignores the MIDI channel, so give that track a bus of its own first.
 
 ## Debugging "I turned a knob and the UI ignored it"
 

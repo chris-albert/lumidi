@@ -70,6 +70,7 @@
     button { cursor: pointer; }
     button:hover { border-color: #58a6ff; }
     #stats { margin-left: auto; color: #8b949e; font-variant-numeric: tabular-nums; }
+    #stats.warn { color: #ff7b72; }
     #banner {
       padding: 10px 20px;
       background: #3d1d1d;
@@ -97,6 +98,8 @@
       cursor: grab;
       touch-action: none;
       user-select: none;
+      /* own compositor layer: a strip's LED changes repaint only that strip */
+      will-change: transform;
     }
     .device.selected { border-color: #58a6ff; z-index: 1; }
     .led {

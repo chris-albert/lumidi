@@ -27,6 +27,20 @@ let devices = [];
 let selectedId = null;
 let midi = null;
 let msgs = 0;
+// port name -> 17 slots (index = MIDI channel 1..16, slot 0 unused) -> the
+// devices that take that channel; rebuilt by attachInputs()
+let routes = new Map();
+
+// Chrome queues MIDI input without limit: if the page ever falls behind, the
+// backlog only grows and the strips show older and older frames until a
+// reload clears the queue. A message's timeStamp is when it arrived, so
+// now - timeStamp is how far behind we are. Past LAG_DROP_MS we skip
+// messages (cheapest possible handler) until caught up; the engine re-sends
+// a full frame every ~2s, which repairs any pixel skipped meanwhile.
+const LAG_DROP_MS = 250;
+let lagBase = Infinity; // smallest lag seen, in case the clocks are offset
+let lagMax = 0;         // worst lag since the last stats tick
+let dropped = 0;        // messages skipped since the last stats tick
 
 function clamp(v, lo, hi) {
   return v < lo ? lo : (v > hi ? hi : v);
@@ -68,6 +82,7 @@ function newDevice() {
 function mount(d) {
   d.staging = new Uint8Array(MAX_NOTE_LEDS * 3);
   d.shown = new Uint8Array(MAX_NOTE_LEDS * 3); // last latched frame
+  d.painted = new Int16Array(MAX_NOTE_LEDS * 3); // what the DOM shows, -1 = unknown
   d.dirty = false;
   d.frames = 0;
   d.msgs = 0;
@@ -120,6 +135,7 @@ function buildLeds(d) {
     d.ledEls.push(el);
   }
   d.el.append(d.nameEl, d.rotateEl);
+  d.painted.fill(-1);
   d.dirty = true;
 }
 
@@ -132,14 +148,22 @@ function place(d) {
   d.nameEl.textContent = d.name;
 }
 
-// The MIDI handler runs per message (100s/sec per animating strip) and only
+// The MIDI handler runs per message (1000s/sec per animating strip) and only
 // touches buffers; latched frames reach the DOM here, once per display frame.
+// Only LEDs whose color changed are restyled: each write invalidates style
+// and repaints a blurred box-shadow, and most LEDs hold still between frames.
 function paint() {
   for (const d of devices) {
     if (!d.dirty) continue;
     d.dirty = false;
+    const shown = d.shown, painted = d.painted;
     for (let i = 0; i < d.leds; i++) {
-      const r = d.shown[i * 3], g = d.shown[i * 3 + 1], b = d.shown[i * 3 + 2];
+      const k = i * 3;
+      const r = shown[k], g = shown[k + 1], b = shown[k + 2];
+      if (painted[k] === r && painted[k + 1] === g && painted[k + 2] === b) continue;
+      painted[k] = r;
+      painted[k + 1] = g;
+      painted[k + 2] = b;
       const el = d.ledEls[i];
       el.style.background = `rgb(${r}, ${g}, ${b})`;
       const glow = Math.max(r, g, b);
@@ -192,13 +216,13 @@ function renderPanel() {
     // keep a saved port that is currently unplugged selectable
     if (d.input && !names.includes(d.input)) input.appendChild(new Option(`${d.input} (missing)`, d.input));
     input.value = d.input;
-    input.addEventListener('change', () => { d.input = input.value; save(); });
+    input.addEventListener('change', () => { d.input = input.value; attachInputs(); save(); });
 
     const channel = field('Channel', document.createElement('select'));
     channel.appendChild(new Option('any', 0));
     for (let c = 1; c <= 16; c++) channel.appendChild(new Option(c, c));
     channel.value = d.channel;
-    channel.addEventListener('change', () => { d.channel = +channel.value; save(); });
+    channel.addEventListener('change', () => { d.channel = +channel.value; attachInputs(); save(); });
 
     const number = (label, key, min, max, apply) => {
       const el = field(label, document.createElement('input'));
@@ -226,6 +250,7 @@ function renderPanel() {
     remove.addEventListener('click', () => {
       d.el.remove();
       devices = devices.filter(o => o !== d);
+      attachInputs();
       save();
       renderPanel();
     });
@@ -252,19 +277,32 @@ function renderStats() {
     d.frames = 0;
     d.msgs = 0;
   }
-  statsEl.textContent = `${devices.length} device${devices.length === 1 ? '' : 's'} · ${msgs} msg/s`;
+  let text = `${devices.length} device${devices.length === 1 ? '' : 's'} · ${msgs} msg/s`;
+  if (dropped) text += ` — falling behind (${(lagMax / 1000).toFixed(1)}s), skipped ${dropped} msgs`;
+  statsEl.textContent = text;
+  statsEl.classList.toggle('warn', dropped > 0);
   msgs = 0;
+  dropped = 0;
+  lagMax = 0;
 }
 
 // --- MIDI ---
 
-function onMidiMessage(portName, e) {
-  const [status, note, velocity] = e.data;
+function onMidiMessage(slots, e) {
   msgs++;
+  const lag = performance.now() - e.timeStamp;
+  if (lag < lagBase) lagBase = lag;
+  if (lag - lagBase > LAG_DROP_MS) {
+    dropped++;
+    if (lag - lagBase > lagMax) lagMax = lag - lagBase;
+    return;
+  }
+  const data = e.data;
+  const status = data[0], note = data[1], velocity = data[2];
   if ((status & 0xf0) !== 0x90 || velocity === 0) return; // note-ons only, vel 0 = note-off
-  const channel = (status & 0x0f) + 1;
-  for (const d of devices) {
-    if (d.input !== portName || (d.channel && d.channel !== channel)) continue;
+  const targets = slots[(status & 0x0f) + 1];
+  for (let t = 0; t < targets.length; t++) {
+    const d = targets[t];
     d.msgs++;
     if (note === 127) {
       d.shown.set(d.staging);
@@ -277,10 +315,27 @@ function onMidiMessage(portName, e) {
   }
 }
 
-// every port is always listened to; devices filter by port name + channel
+// Only ports some device uses are listened to: every message on an open port
+// costs a browser-to-page hop and an event, even ones nobody wants. The
+// per-channel device lists are precomputed so a message never scans devices.
 function attachInputs() {
+  routes = new Map();
+  for (const d of devices) {
+    if (!d.input) continue;
+    let slots = routes.get(d.input);
+    if (!slots) routes.set(d.input, slots = Array.from({ length: 17 }, () => []));
+    for (let c = 1; c <= 16; c++) if (!d.channel || d.channel === c) slots[c].push(d);
+  }
+  if (!midi) return;
   for (const input of midi.inputs.values()) {
-    input.onmidimessage = (e) => onMidiMessage(input.name, e);
+    const slots = routes.get(input.name);
+    if (slots) {
+      input.onmidimessage = (e) => onMidiMessage(slots, e);
+    } else {
+      input.onmidimessage = null;
+      // a port stays open (and keeps streaming to the page) until closed
+      if (input.connection === 'open') input.close();
+    }
   }
 }
 
@@ -304,6 +359,7 @@ async function init() {
     const d = newDevice();
     devices.push(d);
     mount(d);
+    attachInputs();
     selectedId = d.id;
     save();
     renderPanel();

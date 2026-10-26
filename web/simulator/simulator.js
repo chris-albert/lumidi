@@ -189,6 +189,7 @@ function renameDevice(midi) {
   }
   out.send([0xF0, 0x7D, 0x4E, ...[...name].map(c => c.charCodeAt(0)), 0xF7]);
   log(`--- rename: sent "${name}" to "${out.name}" — device is rebooting to apply it ---`);
+  log('--- note: macOS caches MIDI names — if ports still show the old name, unplug, delete the old device in Audio MIDI Setup > MIDI Studio, replug ---');
 }
 
 async function init() {

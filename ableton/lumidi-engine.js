@@ -296,7 +296,7 @@ function sendStatus() {
   outlet(2, "sent", dbgSent);
   outlet(2, "gate", gateWord());
   outlet(2, "layout", layoutWord);
-  outlet(2, "dim", followed ? 1 : 0); // repeated so the controls can't stay stale
+  outlet(2, "enable", followed ? 0 : 1); // repeated so the controls can't stay stale
   dbgSent = 0;
 }
 
@@ -637,7 +637,7 @@ function updateLink(now) {
   }
   if (!!e !== followed) {
     followed = !!e;
-    outlet(2, "dim", followed ? 1 : 0); // the patch greys the shared controls
+    outlet(2, "enable", followed ? 0 : 1); // the patch greys a follower's shared controls
   }
   return word;
 }

@@ -1116,6 +1116,87 @@
 					],
 					"text": "prepend strip"
 				}
+			},
+			{
+				"box": {
+					"id": "obj-53",
+					"maxclass": "comment",
+					"numinlets": 1,
+					"numoutlets": 0,
+					"patching_rect": [
+						1410.0,
+						30.0,
+						32.0,
+						18.0
+					],
+					"presentation": 1,
+					"presentation_rect": [
+						178.0,
+						92.0,
+						32.0,
+						18.0
+					],
+					"text": "Flip"
+				}
+			},
+			{
+				"box": {
+					"id": "obj-54",
+					"maxclass": "live.toggle",
+					"numinlets": 1,
+					"numoutlets": 1,
+					"outlettype": [
+						""
+					],
+					"parameter_enable": 1,
+					"patching_rect": [
+						1410.0,
+						60.0,
+						15.0,
+						15.0
+					],
+					"presentation": 1,
+					"presentation_rect": [
+						208.0,
+						93.0,
+						15.0,
+						15.0
+					],
+					"saved_attribute_attributes": {
+						"valueof": {
+							"parameter_enum": [
+								"off",
+								"on"
+							],
+							"parameter_initial": [
+								0
+							],
+							"parameter_initial_enable": 1,
+							"parameter_longname": "Flip",
+							"parameter_mmax": 1,
+							"parameter_shortname": "Flip",
+							"parameter_type": 2
+						}
+					}
+				}
+			},
+			{
+				"box": {
+					"id": "obj-55",
+					"maxclass": "newobj",
+					"numinlets": 1,
+					"numoutlets": 1,
+					"outlettype": [
+						""
+					],
+					"patching_rect": [
+						1410.0,
+						100.0,
+						85.0,
+						22.0
+					],
+					"text": "prepend flip"
+				}
 			}
 		],
 		"lines": [
@@ -1739,6 +1820,42 @@
 					],
 					"source": [
 						"obj-46",
+						0
+					]
+				}
+			},
+			{
+				"patchline": {
+					"source": [
+						"obj-54",
+						0
+					],
+					"destination": [
+						"obj-55",
+						0
+					]
+				}
+			},
+			{
+				"patchline": {
+					"source": [
+						"obj-55",
+						0
+					],
+					"destination": [
+						"obj-30",
+						0
+					]
+				}
+			},
+			{
+				"patchline": {
+					"source": [
+						"obj-46",
+						0
+					],
+					"destination": [
+						"obj-54",
 						0
 					]
 				}

@@ -28,12 +28,16 @@ The `.amxd` must stay in this folder — an unfrozen device finds
    ignored downstream while the engine logs perfect bursts).
 4. Controls: **On**, **Animation** (Solid / Pulse / Chase / Rainbow / Strobe /
    Scanner / Breathe / Wipe / Theater / Burst / Hue Drift / Sparkle / Fire /
-   Flip / Wave), **Direction** (reverses chase, rainbow, scanner, wipe,
-   theater, hue drift, wave; swaps flip's starting side), **Hue / Sat /
+   Flip / Wave), **Direction** (Fwd = chase, rainbow, scanner, wipe, theater and
+   wave all travel from the first pixel toward the last — across every strip
+   in a layout; Rev runs them the other way; also reverses hue drift and
+   swaps flip's starting side), **Hue / Sat /
    Bright** (color; swatch shows the result), **Rate** (free-run speed),
    **Sync + SyncRate** (lock the animation cycle to Live's transport, e.g. 1 bar),
    **Pixels** (the strip's length, 1–42), **Strip** (0 = standalone, 1–8 = this
-   strip's position in a multi-strip layout — see below).
+   strip's position in a multi-strip layout — see below), **Flip** (this
+   strip is wired backwards: mirror it so animations read correctly — see
+   below).
    All parameters are automatable. Sparkle and Fire use deterministic noise
    hashed from the transport position, so a beat-synced loop replays the
    same twinkles every pass.
@@ -61,6 +65,14 @@ canvas, each device emitting only its own slice: a chase runs off the end of
 strip 1 straight onto strip 2, a rainbow is one gradient across all of them.
 Each device keeps its own controls, so for a seamless picture give them the
 same Animation, Direction, Sync and Rate (or map them to one macro).
+
+The canvas assumes each strip's first pixel (its data-in end) sits next to
+the previous strip's last pixel. A strip mounted the other way round — data
+cable at the far end — would show its slice mirrored: a chase would run off
+the end of strip 1, reappear at the far end of strip 2 and come back toward
+the junction. Turn on **Flip** on that strip's device and only that one. Flip
+is a per-strip wiring correction; Direction is the travel direction of the
+whole animation and should stay the same on every device.
 
 Details worth knowing:
 

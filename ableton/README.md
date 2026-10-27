@@ -37,7 +37,8 @@ The `.amxd` must stay in this folder — an unfrozen device finds
    **Pixels** (the strip's length, 1–42), **Strip** (0 = standalone, 1–8 = this
    strip's position in a multi-strip layout — see below), **Flip** (this
    strip is wired backwards: mirror it so animations read correctly — see
-   below).
+   below), **Link** (Free / Lead / Follow: let one device's dials drive the
+   others — see "Linking devices").
    All parameters are automatable. Sparkle and Fire use deterministic noise
    hashed from the transport position, so a beat-synced loop replays the
    same twinkles every pass.
@@ -64,7 +65,7 @@ end to end, ordered by number — and every animation is rendered on that
 canvas, each device emitting only its own slice: a chase runs off the end of
 strip 1 straight onto strip 2, a rainbow is one gradient across all of them.
 Each device keeps its own controls, so for a seamless picture give them the
-same Animation, Direction, Sync and Rate (or map them to one macro).
+same Animation, Direction, Sync and Rate (or link them — see below).
 
 The canvas assumes each strip's first pixel (its data-in end) sits next to
 the previous strip's last pixel. A strip mounted the other way round — data
@@ -73,6 +74,10 @@ the end of strip 1, reappear at the far end of strip 2 and come back toward
 the junction. Turn on **Flip** on that strip's device and only that one. Flip
 is a per-strip wiring correction; Direction is the travel direction of the
 whole animation and should stay the same on every device.
+
+Each device keeps its own controls, so for a seamless picture give them the
+same Animation, Direction, Sync and Rate — or set **Link** so one device
+drives the others (next section).
 
 Details worth knowing:
 
@@ -93,6 +98,38 @@ Details worth knowing:
 - To preview a layout without hardware, use the web **stage simulator**
   (`web/stage/`): it places one virtual strip per device in 2D, each listening
   on its own MIDI channel (or its own IAC bus). See `web/README.md`.
+- One track can drive every strip: put the devices in an Instrument Rack,
+  one chain per strip, each chain LumiDI followed by an External Instrument
+  whose MIDI To is that strip's port (a Teensy, or an IAC bus + channel for
+  the stage simulator). The layout discovery works the same inside a rack.
+
+## Linking devices
+
+**Link** decides whose dials a device renders from:
+
+- **Free** (default): its own, as always.
+- **Lead**: its own, and it publishes them for the followers.
+- **Follow**: the leader's. Its own shared dials are greyed out and ignored
+  — but remembered, so switching back to Free returns the strip to exactly
+  what they say.
+
+What follows is the look: Animation, Direction, Hue, Sat, Bright, Rate, Sync
+and SyncRate. Pixels, Strip, Flip and On describe the physical strip and
+always stay local. Followers pick up a leader change on the next tick
+(~33 ms); with Sync on everything derives its phase from the song position,
+so motion stays in step regardless.
+
+Link is an ordinary automatable parameter. Automate one device's dials for
+the shared look, and automate Link on a follower to pull it out for a
+section (Follow → Free) and back in again. Followers and leader need not be
+in the same layout — Link is set-wide, like the layout table — but there is
+only one leader at a time: if two devices are on Lead, the lower Strip
+number wins (standalone last; on a tie, whichever claimed first) and the
+other renders as Free and posts `lead-dup` to the Max window. A follower
+whose leader is gone (deleted, or switched off Lead) falls back to its own
+dials within about a second and posts `no-lead`. The `layout` line the
+engine posts to the Max window (and the `status` dump) carries the link
+state: `1of4 +0/76 lead`, `2of4 +19/76 follow`.
 
 ## Development
 

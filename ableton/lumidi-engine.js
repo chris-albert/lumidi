@@ -60,7 +60,10 @@ var p = {
   rate: 1,        // Hz, free-run speed
   sync: 0,        // 0/1
   syncrate: 3,    // index into SYNC_BEATS (default 1 bar)
-  dir: 0,         // 0 forward, 1 reverse
+  dir: 0,         // 0 forward, 1 reverse. Forward = travel toward higher
+                  // pixel numbers on the canvas (strip 1's first pixel is the start)
+  flip: 0,        // 1 = this strip is wired backwards: its first pixel sits at
+                  // the far end, so mirror it onto the canvas
   on: 1,          // 0 -> blackout and stop emitting
   leds: 19,       // pixels on this device's strip, 1..MAX_LEDS
   strip: 0        // 0 standalone; 1..MAX_STRIPS = position in a multi-strip layout
@@ -136,6 +139,7 @@ function rate(v)       { p.rate = v; }
 function sync(v)       { p.sync = v | 0; }
 function syncrate(i)   { p.syncrate = i | 0; }
 function dir(i)        { p.dir = i | 0; pushSoon(); }
+function flip(v)       { p.flip = v | 0; invalidate(); pushNow(); }
 
 // strip length. Shrinking clears the pixels past the new end first — writes
 // only ever reach 0..n-1, so the hardware would keep showing their last color.
@@ -251,7 +255,8 @@ function status() {
     + " lastError=" + (lastError ? "[" + lastError + "]" : "none")
     + " | anim=" + p.anim + " hue=" + Math.round(p.hue) + " sat=" + Math.round(p.sat)
     + " bright=" + Math.round(p.brightness) + " rate=" + p.rate
-    + " sync=" + p.sync + " syncrate=" + p.syncrate + " dir=" + p.dir + " on=" + p.on
+    + " sync=" + p.sync + " syncrate=" + p.syncrate + " dir=" + p.dir
+    + " flip=" + p.flip + " on=" + p.on
     + " | leds=" + p.leds + " strip=" + p.strip + " layout=" + layoutWord
     + " offset=" + stripOffset + " total=" + stripTotal
     + " | active=" + deviceActive + " playing=" + transPlaying
@@ -336,28 +341,34 @@ function renderFrame() {
   var g;                // pixel index on the canvas (i is local to this strip)
 
   for (i = 0; i < p.leds; i++) {
-    g = stripOffset + i;
+    // a flipped strip has its data-in at the far end: local pixel 0 is the
+    // canvas pixel nearest the strip's END, so mirror the local index
+    g = stripOffset + (p.flip ? p.leds - 1 - i : i);
     if (p.anim === 0) { // solid
       rgb = base;
     } else if (p.anim === 1) { // pulse: peaks on the beat (phase 0)
       level = 0.5 + 0.5 * Math.cos(2 * Math.PI * phase);
       rgb = [base[0] * level, base[1] * level, base[2] * level];
-    } else if (p.anim === 2) { // chase: comet head with fading tail
-      pos = phase * N;
-      d = (p.dir ? pos - g : g - pos);         // pixels behind the head
+    } else if (p.anim === 2) { // chase: comet head with fading tail. Head
+             // starts at the canvas start on the beat and travels forward;
+             // reverse runs from the far end back toward it.
+      pos = (p.dir ? 1 - phase : phase) * N;   // head position
+      d = (p.dir ? g - pos : pos - g);         // pixels behind the head
       d -= Math.floor(d / N) * N; // wrap to 0..N
       level = Math.max(0, 1 - d / (N * 0.5));
       level = level * level;                    // sharper falloff
       rgb = [base[0] * level, base[1] * level, base[2] * level];
     } else if (p.anim === 3) { // rainbow: hue gradient scrolling along the strip
-      h = p.hue + (g / N) * 360 + (p.dir ? -1 : 1) * phase * 360;
+      h = p.hue + (g / N) * 360 + (p.dir ? 1 : -1) * phase * 360;
       rgb = hsvToRgb(h, s, 1);
     } else if (p.anim === 4) { // strobe: hard pulse — full on for the first
              // half of the cycle (lands on the beat, like pulse's peak), then off
       level = phase < 0.5 ? 1 : 0;
       rgb = [base[0] * level, base[1] * level, base[2] * level];
-    } else if (p.anim === 5) { // scanner: comet bounces end-to-end, no wrap
+    } else if (p.anim === 5) { // scanner: comet bounces end-to-end, no wrap;
+             // leaves the canvas start on the beat (reverse: the far end)
       pos = (1 - Math.abs(2 * phase - 1)) * (N - 1);
+      if (p.dir) pos = N - 1 - pos;
       level = Math.max(0, 1 - Math.abs(g - pos) / 3);
       level = level * level;
       rgb = [base[0] * level, base[1] * level, base[2] * level];
@@ -374,7 +385,7 @@ function renderFrame() {
     } else if (p.anim === 8) { // theater: marquee — every 3rd pixel, stepping
              // once per third of the cycle
       step = Math.floor(phase * 3);
-      level = (((g + (p.dir ? -step : step)) % 3 + 3) % 3) === 0 ? 1 : 0;
+      level = (((g + (p.dir ? step : -step)) % 3 + 3) % 3) === 0 ? 1 : 0;
       rgb = [base[0] * level, base[1] * level, base[2] * level];
     } else if (p.anim === 9) { // burst: soft-edged disk expands from the
              // center each cycle, fading as it grows

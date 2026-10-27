@@ -66,8 +66,18 @@ var p = {
                   // the far end, so mirror it onto the canvas
   on: 1,          // 0 -> blackout and stop emitting
   leds: 19,       // pixels on this device's strip, 1..MAX_LEDS
-  strip: 0        // 0 standalone; 1..MAX_STRIPS = position in a multi-strip layout
+  strip: 0,       // 0 standalone; 1..MAX_STRIPS = position in a multi-strip layout
+  link: 0         // 0 free (own dials), 1 lead (own dials, published for
+                  // followers), 2 follow (render from the leader's dials)
 };
+
+// The dials a Follow device takes from its leader. Their latest values are
+// always kept in own[] so a device that stops following returns to exactly
+// what its dials say.
+var SHARED_KEYS = ["anim", "dir", "hue", "sat", "brightness", "rate", "sync", "syncrate"];
+var own = {};
+var followed = false; // rendering from a leader's values right now
+(function () { var i; for (i = 0; i < SHARED_KEYS.length; i++) own[SHARED_KEYS[i]] = p[SHARED_KEYS[i]]; })();
 
 // --- transport state (banged into us right before each tick) ---
 var transTicks = 0;   // raw ticks, 480 per beat
@@ -83,6 +93,14 @@ var transPlaying = 0;
 // other slots back. An entry older than LAYOUT_TTL_MS belongs to a device
 // that was deleted. Outside Max (the web shim) Global doesn't exist and the
 // engine is always standalone.
+//
+// The same namespace carries the lead/follow link: a Lead device writes its
+// SHARED_KEYS values into the "lead" entry once per tick (same TTL), and
+// Follow devices copy them in place of their own dials. If two devices
+// lead, the lower strip number wins (standalone counts last; on a tie the
+// first to claim keeps it) and the other behaves as Free, reporting
+// "lead-dup". A follower whose leader has gone falls back to its own dials
+// ("no-lead") until one returns.
 var LAYOUT_TTL_MS = 1000;
 var shared = (typeof Global === "function") ? new Global("lumidi") : null;
 var instanceId = Math.floor(Math.random() * 1e9) + 1;
@@ -131,15 +149,48 @@ function resetBuffers() {
 }
 
 // --- parameter messages from the patch ---
-function anim(i)       { p.anim = i | 0; invalidate(); pushNow(); }
-function hue(v)        { p.hue = v; sendSwatch(); pushSoon(); }
-function sat(v)        { p.sat = v; sendSwatch(); pushSoon(); }
-function brightness(v) { p.brightness = v; pushSoon(); }
-function rate(v)       { p.rate = v; }
-function sync(v)       { p.sync = v | 0; }
-function syncrate(i)   { p.syncrate = i | 0; }
-function dir(i)        { p.dir = i | 0; pushSoon(); }
+function anim(i)       { setShared("anim", i | 0); }
+function hue(v)        { setShared("hue", v); }
+function sat(v)        { setShared("sat", v); }
+function brightness(v) { setShared("brightness", v); }
+function rate(v)       { setShared("rate", v); }
+function sync(v)       { setShared("sync", v | 0); }
+function syncrate(i)   { setShared("syncrate", i | 0); }
+function dir(i)        { setShared("dir", i | 0); }
 function flip(v)       { p.flip = v | 0; invalidate(); pushNow(); }
+
+// a shared dial moved: remember it; it takes effect unless a leader is in charge
+function setShared(k, v) {
+  own[k] = v;
+  if (!followed) applyShared(k, v);
+}
+
+// put one shared value into effect, with the side effects its dial has
+function applyShared(k, v) {
+  p[k] = v;
+  if (k === "anim") { invalidate(); pushNow(); }
+  else if (k === "hue" || k === "sat") { sendSwatch(); pushSoon(); }
+  else if (k === "brightness" || k === "dir") pushSoon();
+  // rate, sync, syncrate: streaming picks them up on the next frame
+}
+
+// back to this device's own dials (leaving Follow, or the leader vanished)
+function restoreOwn() {
+  var i, k;
+  for (i = 0; i < SHARED_KEYS.length; i++) {
+    k = SHARED_KEYS[i];
+    if (own[k] !== p[k]) applyShared(k, own[k]);
+  }
+}
+
+// 0 free, 1 lead, 2 follow (see the layout notes above)
+function link(n) {
+  n = clamp(n | 0, 0, 2);
+  if (n === p.link) return;
+  if (p.link === 1) releaseLead(); // no phantom leader entry
+  p.link = n;
+  updateLayout(); // claim or read the leader entry right away
+}
 
 // strip length. Shrinking clears the pixels past the new end first — writes
 // only ever reach 0..n-1, so the hardware would keep showing their last color.
@@ -245,6 +296,7 @@ function sendStatus() {
   outlet(2, "sent", dbgSent);
   outlet(2, "gate", gateWord());
   outlet(2, "layout", layoutWord);
+  outlet(2, "dim", followed ? 1 : 0); // repeated so the controls can't stay stale
   dbgSent = 0;
 }
 
@@ -256,7 +308,7 @@ function status() {
     + " | anim=" + p.anim + " hue=" + Math.round(p.hue) + " sat=" + Math.round(p.sat)
     + " bright=" + Math.round(p.brightness) + " rate=" + p.rate
     + " sync=" + p.sync + " syncrate=" + p.syncrate + " dir=" + p.dir
-    + " flip=" + p.flip + " on=" + p.on
+    + " flip=" + p.flip + " on=" + p.on + " link=" + p.link + " followed=" + (followed ? 1 : 0)
     + " | leds=" + p.leds + " strip=" + p.strip + " layout=" + layoutWord
     + " offset=" + stripOffset + " total=" + stripTotal
     + " | active=" + deviceActive + " playing=" + transPlaying
@@ -522,10 +574,72 @@ function updateLayout() {
     invalidate();
     pushNow(); // static output re-renders on the new canvas
   }
+  word += updateLink(now);
   if (word !== layoutWord) {
     layoutWord = word;
     dbg("lumidi-engine: layout " + word);
   }
+}
+
+// --- lead/follow link (state and protocol: see the layout notes above) ---
+// a Lead device's claim on the "lead" entry: lower wins, standalone last
+function leadPrio() { return p.strip || MAX_STRIPS + 1; }
+
+// "<id> <prio> <anim> <dir> <hue> <sat> <bright> <rate> <sync> <syncrate> <ms>"
+// -> {id, prio, vals}, or null when missing/expired/garbage
+function readLead(now) {
+  var raw = shared.lead;
+  if (typeof raw !== "string") return null;
+  var f = raw.split(" ");
+  if (f.length !== SHARED_KEYS.length + 3) return null;
+  var id = f[0] | 0, prio = f[1] | 0, ms = +f[f.length - 1];
+  if (!id || !(now - ms < LAYOUT_TTL_MS)) return null;
+  var vals = {}, i, v;
+  for (i = 0; i < SHARED_KEYS.length; i++) {
+    v = +f[i + 2];
+    if (v !== v) return null; // NaN
+    vals[SHARED_KEYS[i]] = v;
+  }
+  return { id: id, prio: prio, vals: vals };
+}
+
+function releaseLead() {
+  if (!shared) return;
+  var e = readLead(Date.now());
+  if (e && e.id === instanceId) shared.lead = "";
+}
+
+// Once per tick, after the layout: publish (lead) or copy (follow) the shared
+// dials. Returns the suffix for the layout word.
+function updateLink(now) {
+  var e = null, word = "", i, k, s;
+  if (shared && p.link === 1) {
+    e = readLead(now);
+    var lost = !!(e && e.id !== instanceId && e.prio <= leadPrio());
+    if (!lost) {
+      s = instanceId + " " + leadPrio();
+      for (i = 0; i < SHARED_KEYS.length; i++) s += " " + p[SHARED_KEYS[i]];
+      shared.lead = s + " " + now;
+    }
+    word = lost ? " lead-dup" : " lead";
+    e = null;
+  } else if (shared && p.link === 2) {
+    e = readLead(now);
+    word = e ? " follow" : " no-lead";
+  }
+  if (e) {
+    for (i = 0; i < SHARED_KEYS.length; i++) {
+      k = SHARED_KEYS[i];
+      if (e.vals[k] !== p[k]) applyShared(k, e.vals[k]);
+    }
+  } else if (followed) {
+    restoreOwn();
+  }
+  if (!!e !== followed) {
+    followed = !!e;
+    outlet(2, "dim", followed ? 1 : 0); // the patch greys the shared controls
+  }
+  return word;
 }
 
 // --- helpers ---

@@ -68,8 +68,11 @@ Details worth knowing:
   tick, so load order doesn't matter and gaps in the numbering are fine.
 - A deleted or bypassed-and-removed device drops out of the layout after
   about a second and the rest re-flow.
-- Two devices on the same number don't fight: the later one stays standalone
-  and posts `2 conflict` (for strip 2) to the Max window.
+- Two devices on the same number mirror each other: both render strip 2's
+  slice of the canvas (the later one posts `2of3 +19/68 dup` to the Max
+  window). Handy for two physical strips that should show the same thing.
+  Give them the same Pixels — the slot's length comes from whichever device
+  claimed it first.
 - Alignment: with Sync on, every device derives its phase from the song
   position, so they are always in step. With Sync off the phase is integrated
   from transport time and restarted at every play, so devices present when

@@ -85,7 +85,7 @@ var shared = (typeof Global === "function") ? new Global("lumidi") : null;
 var instanceId = Math.floor(Math.random() * 1e9) + 1;
 var stripOffset = 0;      // this strip's first pixel on the shared canvas
 var stripTotal = p.leds;  // pixels on the whole canvas (= p.leds when standalone)
-var layoutWord = "solo";  // debug: "solo" | "2of3 +19/68" | "2 conflict"
+var layoutWord = "solo";  // debug: "solo" | "2of3 +19/68" | "2of3 +19/68 dup"
 
 // --- animation state ---
 var phase = 0;            // 0..1 position in the animation cycle
@@ -489,23 +489,21 @@ function updateLayout() {
     word = "solo";
     total = p.leds;
   } else {
+    // Two devices on one number both show that strip's slice (a mirror).
+    // The first to claim the slot owns it and keeps its heartbeat; a
+    // duplicate reads the owner's entry like any other slot instead of
+    // writing, so every device still agrees on the same canvas.
     e = readSlot(p.strip, now);
-    if (e && e.id !== instanceId) {
-      // another device claims the same number: stay standalone rather than
-      // fight over the slot; the debug readout names the clash
-      word = p.strip + " conflict";
-      total = p.leds;
-    } else {
-      shared[slotName(p.strip)] = instanceId + " " + p.leds + " " + now;
-      for (i = 1; i <= MAX_STRIPS; i++) {
-        e = i === p.strip ? { leds: p.leds } : readSlot(i, now);
-        if (!e) continue;
-        if (i < p.strip) offset += e.leds;
-        total += e.leds;
-        count++;
-      }
-      word = p.strip + "of" + count + " +" + offset + "/" + total;
+    var dup = !!(e && e.id !== instanceId);
+    if (!dup) shared[slotName(p.strip)] = instanceId + " " + p.leds + " " + now;
+    for (i = 1; i <= MAX_STRIPS; i++) {
+      e = (i === p.strip && !dup) ? { leds: p.leds } : readSlot(i, now);
+      if (!e) continue;
+      if (i < p.strip) offset += e.leds;
+      total += e.leds;
+      count++;
     }
+    word = p.strip + "of" + count + " +" + offset + "/" + total + (dup ? " dup" : "");
   }
   if (offset !== stripOffset || total !== stripTotal) {
     stripOffset = offset;

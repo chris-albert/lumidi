@@ -937,7 +937,7 @@
 						80.0,
 						22.0
 					],
-					"text": "route resync dim"
+					"text": "route resync enable"
 				}
 			},
 			{

@@ -207,10 +207,12 @@ function renderPanel() {
 
     const name = field('Name', document.createElement('input'));
     name.type = 'text';
+    name.name = 'name';
     name.value = d.name;
     name.addEventListener('input', () => { d.name = name.value; place(d); save(); });
 
     const input = field('MIDI input', document.createElement('select'));
+    input.name = 'input';
     input.appendChild(new Option('— none —', ''));
     for (const n of names) input.appendChild(new Option(n, n));
     // keep a saved port that is currently unplugged selectable
@@ -219,6 +221,7 @@ function renderPanel() {
     input.addEventListener('change', () => { d.input = input.value; attachInputs(); save(); });
 
     const channel = field('Channel', document.createElement('select'));
+    channel.name = 'channel';
     channel.appendChild(new Option('any', 0));
     for (let c = 1; c <= 16; c++) channel.appendChild(new Option(c, c));
     channel.value = d.channel;
@@ -227,6 +230,7 @@ function renderPanel() {
     const number = (label, key, min, max, apply) => {
       const el = field(label, document.createElement('input'));
       el.type = 'number';
+      el.name = key;
       el.min = min;
       el.max = max;
       el.value = d[key];
@@ -331,10 +335,13 @@ function attachInputs() {
     const slots = routes.get(input.name);
     if (slots) {
       input.onmidimessage = (e) => onMidiMessage(slots, e);
-    } else {
+    } else if (input.onmidimessage) {
+      // a port stays open (and keeps streaming to the page) until closed.
+      // Only ports we were listening to are touched: in Chrome, assigning
+      // onmidimessage (even null) re-opens the port, and open/close each fire
+      // statechange, so clearing every unused port here would loop forever.
       input.onmidimessage = null;
-      // a port stays open (and keeps streaming to the page) until closed
-      if (input.connection === 'open') input.close();
+      input.close();
     }
   }
 }
